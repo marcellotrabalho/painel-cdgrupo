@@ -161,23 +161,13 @@ button:active{transform:scale(.97)}
 <!-- SYNC MODAL -->
 <div id="sync-modal">
   <div id="sync-box">
-    <div style="font-weight:900;font-size:18px;color:#edf4ff;margin-bottom:4px">🔗 Sincronização</div>
-    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:16px;line-height:1.7">Para compartilhar dados entre dispositivos, use o <strong style="color:#38bdf8">JSONBin.io</strong> (gratuito).<br>1. Acesse <strong>jsonbin.io</strong> → crie conta grátis<br>2. Vá em API Keys → copie a Master Key<br>3. Cole abaixo e clique em Conectar</div>
-    <span class="lbl">Master Key (X-Master-Key)</span>
-    <input type="text" id="jb-key" placeholder="$2b$10$..." style="margin-bottom:9px">
-    <span class="lbl">Bin ID (deixe vazio para criar novo)</span>
-    <input type="text" id="jb-bin" placeholder="64abc123..." style="margin-bottom:12px">
-    <div style="display:flex;gap:7px">
-      <button onclick="closeSyncModal()" style="flex:1;padding:10px;border:1.5px solid rgba(255,255,255,.1);border-radius:8px;background:none;color:rgba(255,255,255,.38);font-weight:600;font-size:13px">Cancelar</button>
-      <button onclick="saveSync()" style="flex:2;padding:10px;border:none;border-radius:8px;background:#0f766e;color:#fff;font-weight:700;font-size:13px">Conectar</button>
+    <div style="font-weight:900;font-size:18px;color:#edf4ff;margin-bottom:4px">🔗 Backup</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:16px;line-height:1.7">Seus dados sincronizam automaticamente via Firebase entre todos os dispositivos.<br><br>Use o backup abaixo para ter uma cópia local de segurança.</div>
+    <div style="display:flex;gap:7px;margin-bottom:12px">
+      <button onclick="exportData()" style="flex:1;padding:10px;border:1px solid rgba(56,189,248,.2);border-radius:8px;background:rgba(56,189,248,.07);color:#38bdf8;font-weight:700;font-size:12px">📤 Exportar JSON</button>
+      <button onclick="importData()" style="flex:1;padding:10px;border:1px solid rgba(167,139,250,.2);border-radius:8px;background:rgba(167,139,250,.07);color:#a78bfa;font-weight:700;font-size:12px">📥 Importar JSON</button>
     </div>
-    <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07)">
-      <div style="font-size:9px;color:rgba(255,255,255,.38);font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">Backup Manual</div>
-      <div style="display:flex;gap:7px">
-        <button onclick="exportData()" style="flex:1;padding:8px;border:1px solid rgba(56,189,248,.2);border-radius:7px;background:rgba(56,189,248,.07);color:#38bdf8;font-weight:700;font-size:11px">📤 Exportar JSON</button>
-        <button onclick="importData()" style="flex:1;padding:8px;border:1px solid rgba(167,139,250,.2);border-radius:7px;background:rgba(167,139,250,.07);color:#a78bfa;font-weight:700;font-size:11px">📥 Importar JSON</button>
-      </div>
-    </div>
+    <button onclick="closeSyncModal()" style="width:100%;padding:10px;border:1.5px solid rgba(255,255,255,.1);border-radius:8px;background:none;color:rgba(255,255,255,.38);font-weight:600;font-size:13px">Fechar</button>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
   </div>
 </div>
@@ -197,14 +187,13 @@ const ST = [
 ];
 const LS_KEY = 'cdg_v20';
 const MK_KEY = 'cdg_mk';
-const SYNC_KEY = 'cdg_sync';
+
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let D = {clients:[],extras:[],sinais:[],meta:0,ativos:0,history:{}};
 let curTab = 'painel';
 let confirmCb = null;
-let syncCfg = null;
-let syncTimer = null;
+
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
 const dh = () => new Date().toLocaleDateString('pt-BR');
@@ -233,9 +222,41 @@ function toast(msg, col) {
   setTimeout(()=>t.remove(), 3000);
 }
 
-// ─── STORAGE ──────────────────────────────────────────────────────────────────
-function saveLocal() {
+// ─── FIREBASE ─────────────────────────────────────────────────────────────────
+const FB_URL = 'https://cd-grupo-default-rtdb.firebaseio.com/data';
+
+function setSynced(ok) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-txt');
+  if(ok){ dot.className='sync-dot ok pu'; txt.className='sync-txt ok'; txt.textContent='✅ Sync'; }
+  else { dot.className='sync-dot pu'; txt.className='sync-txt'; txt.textContent='⚠️ Offline'; }
+}
+
+async function syncPull() {
+  try {
+    const r = await fetch(FB_URL+'.json');
+    if(!r.ok) { setSynced(false); return; }
+    const j = await r.json();
+    if(j) {
+      D = norm(j);
+      try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
+      renderAll();
+    }
+    setSynced(true);
+  } catch(e){ setSynced(false); }
+}
+
+async function save() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
+  try {
+    await fetch(FB_URL+'.json', {
+      method: 'PUT',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(D)
+    });
+    setSynced(true);
+  } catch(e){ setSynced(false); }
+  renderAll();
 }
 
 function loadLocal() {
@@ -244,78 +265,6 @@ function loadLocal() {
     if(r) { D = norm(JSON.parse(r)); return true; }
   } catch(e){}
   return false;
-}
-
-function loadSyncCfg() {
-  try { syncCfg = JSON.parse(localStorage.getItem(SYNC_KEY)||'null'); } catch(e){}
-}
-
-async function syncPull() {
-  if(!syncCfg?.key || !syncCfg?.bin) return;
-  try {
-    const r = await fetch(`https://api.jsonbin.io/v3/b/${syncCfg.bin}/latest`,{
-      headers:{'X-Master-Key':syncCfg.key}
-    });
-    if(!r.ok) return;
-    const j = await r.json();
-    D = norm(j.record);
-    saveLocal();
-    renderAll();
-    setSynced(true);
-  } catch(e){ setSynced(false); }
-}
-
-async function syncPush() {
-  saveLocal();
-  if(!syncCfg?.key || !syncCfg?.bin) return;
-  try {
-    await fetch(`https://api.jsonbin.io/v3/b/${syncCfg.bin}`,{
-      method:'PUT',
-      headers:{'X-Master-Key':syncCfg.key,'Content-Type':'application/json'},
-      body:JSON.stringify(D)
-    });
-    setSynced(true);
-  } catch(e){ setSynced(false); }
-}
-
-function setSynced(ok) {
-  const dot = document.getElementById('sync-dot');
-  const txt = document.getElementById('sync-txt');
-  if(ok){ dot.className='sync-dot ok pu'; txt.className='sync-txt ok'; txt.textContent='✅ Sync'; }
-  else { dot.className='sync-dot pu'; txt.className='sync-txt'; txt.textContent='⚠️ Local'; }
-}
-
-async function save() {
-  saveLocal();
-  await syncPush();
-  renderAll();
-}
-
-async function saveSync() {
-  const key = document.getElementById('jb-key').value.trim();
-  const bin = document.getElementById('jb-bin').value.trim();
-  if(!key){ toast('Cole a Master Key','#b91c1c'); return; }
-  document.getElementById('sync-txt').textContent = '🔄...';
-  try {
-    let binId = bin;
-    if(!binId) {
-      // Create new bin
-      const r = await fetch('https://api.jsonbin.io/v3/b',{
-        method:'POST',
-        headers:{'X-Master-Key':key,'Content-Type':'application/json','X-Bin-Name':'CDGrupo'},
-        body:JSON.stringify(D)
-      });
-      if(!r.ok){ toast('Chave inválida','#b91c1c'); return; }
-      const j = await r.json();
-      binId = j.metadata.id;
-    }
-    syncCfg = {key, bin:binId};
-    localStorage.setItem(SYNC_KEY, JSON.stringify(syncCfg));
-    await syncPush();
-    closeSyncModal();
-    toast('✅ Sync conectado!');
-    document.getElementById('jb-bin').value = binId;
-  } catch(e){ toast('Erro: '+e.message,'#b91c1c'); }
 }
 
 function exportData() {
@@ -346,11 +295,8 @@ function handleImport(e) {
 }
 
 function closeSyncModal(){ document.getElementById('sync-modal').classList.remove('open'); }
-function openSyncModal(){
-  loadSyncCfg();
-  if(syncCfg){ document.getElementById('jb-key').value=syncCfg.key||''; document.getElementById('jb-bin').value=syncCfg.bin||''; }
-  document.getElementById('sync-modal').classList.add('open');
-}
+function openSyncModal(){ document.getElementById('sync-modal').classList.add('open'); }
+function loadSyncCfg(){}
 
 // ─── MONTH AUTO-CLOSE ─────────────────────────────────────────────────────────
 function checkMonthRollover() {
@@ -951,19 +897,11 @@ function saveNum(field) {
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 async function init() {
   loadLocal();
-  loadSyncCfg();
   checkMonthRollover();
   renderAll();
-
-  if(syncCfg?.key && syncCfg?.bin) {
-    setSynced(false);
-    document.getElementById('sync-txt').textContent='🔄 Sync...';
-    await syncPull();
-    syncTimer = setInterval(syncPull, 30000);
-  } else {
-    setSynced(true);
-    document.getElementById('sync-txt').textContent='💾 Local';
-  }
+  document.getElementById('sync-txt').textContent='🔄...';
+  await syncPull();
+  setInterval(syncPull, 10000);
 }
 
 init();
