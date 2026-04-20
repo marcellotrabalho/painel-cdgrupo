@@ -62,9 +62,9 @@ button:active{transform:scale(.97)}
 #main{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:9px}
 /* CLIENTES TAB */
 #clientes-layout{display:flex;flex-direction:column;flex:1;overflow:hidden}
-#clientes-search-bar{padding:7px 12px;border-bottom:1px solid rgba(56,189,248,.11);flex-shrink:0}
+#clientes-search-bar{padding:7px 12px;border-bottom:1px solid rgba(56,189,248,.11);flex-shrink:0;background:#040d1a;position:sticky;top:0;z-index:10}
 #clientes-search-bar input{margin-bottom:0}
-#clientes-list{flex:1;overflow-y:auto;padding:10px 12px;-webkit-overflow-scrolling:touch}
+#clientes-list{flex:1;overflow-y:auto;padding:10px 12px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
 /* MODAL */
 #modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);z-index:100;display:flex;align-items:flex-end;justify-content:center;display:none}
 #modal-overlay.open{display:flex}
@@ -125,9 +125,17 @@ button:active{transform:scale(.97)}
     </div>
 
     <!-- CLIENTES TAB -->
-    <div id="view-clientes" style="display:none;flex-direction:column;flex:1;overflow:hidden;-webkit-overflow-scrolling:touch">
+    <div id="view-clientes" style="display:none;flex-direction:column;flex:1;overflow:hidden">
       <div id="clientes-search-bar">
-        <input type="search" placeholder="🔍 Buscar cliente..." id="search-input" oninput="renderClientes()" autocomplete="off">
+        <input type="search" placeholder="🔍 Buscar cliente..." id="search-input" oninput="renderClientes()" autocomplete="off" style="margin-bottom:8px">
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">
+          <div class="lbl" style="width:100%;margin-bottom:4px">Status:</div>
+          ${['todos','ativo','atraso','cancelado','concluido'].map(s=>`<button onclick="setFiltroStatus('${s}')" id="fs-${s}" style="padding:3px 8px;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;background:transparent;color:rgba(255,255,255,.38);font-weight:700;font-size:9px;flex-shrink:0">${s==='todos'?'Todos':ST.find(x=>x.id===s)?.l||s}</button>`).join('')}
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <div class="lbl" style="width:100%;margin-bottom:4px">Produto:</div>
+          ${['todos',...PR.map(p=>p.id)].map(pid=>`<button onclick="setFiltroProd('${pid}')" id="fp-${pid}" style="padding:3px 8px;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;background:transparent;color:rgba(255,255,255,.38);font-weight:700;font-size:9px;flex-shrink:0">${pid==='todos'?'Todos':PR.find(p=>p.id===pid)?.n||pid}</button>`).join('')}
+        </div>
       </div>
       <div id="clientes-list" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>
     </div>
@@ -191,6 +199,8 @@ const MK_KEY = 'cdg_mk';
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let D = {clients:[],extras:[],sinais:[],meta:0,ativos:0,history:{}};
+let filtroStatus = 'todos';
+let filtroProd = 'todos';
 let curTab = 'painel';
 let confirmCb = null;
 
@@ -316,10 +326,20 @@ function checkMonthRollover() {
 function setTab(t) {
   curTab = t;
   ['painel','clientes','cadastro','historico'].forEach(id => {
-    document.getElementById('view-'+id).style.display = id===t ? (id==='painel'?'flex':'block') : 'none';
+    const el = document.getElementById('view-'+id);
+    if(id==='painel') el.style.display = id===t ? 'flex' : 'none';
+    else if(id==='clientes') el.style.display = id===t ? 'flex' : 'none';
+    else el.style.display = id===t ? 'block' : 'none';
     document.getElementById('tab-'+id).classList.toggle('active', id===t);
   });
   renderAll();
+  // Apply active styles to default filters
+  if(t==='clientes') {
+    setTimeout(()=>{
+      setFiltroStatus(filtroStatus);
+      setFiltroProd(filtroProd);
+    }, 50);
+  }
 }
 
 // ─── CLOCK ───────────────────────────────────────────────────────────────────
@@ -336,12 +356,29 @@ function renderAll() {
 
 // ─── ALERTS ──────────────────────────────────────────────────────────────────
 function renderAlerts() {
-  const now = new Date(), D_ = now.getDate();
+  const now = new Date(), Y=now.getFullYear(), M=now.getMonth(), Dd=now.getDate();
+  const diasNoMes = new Date(Y,M+1,0).getDate();
   const sinA = (D.sinais||[]).filter(s=>{ const d=dAt(s.dataDecisao); return d!==null&&d<=2&&d>=0; });
-  const cobH = D.clients.filter(c=>c.type!=='antigo'&&c.payMethod==='boleto'&&parseInt(c.diaCobranca)===D_&&c.status!=='cancelado'&&c.status!=='concluido');
+  const cobH = D.clients.filter(c=>c.type!=='antigo'&&c.payMethod==='boleto'&&parseInt(c.diaCobranca)===Dd&&c.status!=='cancelado'&&c.status!=='concluido');
+  // Alerta: clientes em atraso
+  const emAtraso = D.clients.filter(c=>c.status==='atraso');
+  // Alerta: contratos perto de vencer (último mês)
+  const pVencer = D.clients.filter(c=>c.mesesContrato>0&&c.status==='ativo'&&(()=>{const m=mDe(c.dataInicio,Y,M);return m>=c.mesesContrato-1&&m<c.mesesContrato;})());
+  // Alerta: ritmo abaixo de 75% na segunda metade do mês
+  let alertaRitmo = null;
+  if(Dd > diasNoMes/2) {
+    const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+(c.pagamentos||[]).filter(p=>!p.historico).reduce((a,p)=>a+p.valor,0),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
+    const TWD_=wdT(Y,M), wdP_=wdA(Y,M,Dd);
+    const mExp_ = TWD_>0?(D.meta/TWD_)*wdP_:0;
+    const ritmo_ = mExp_>0?Math.round(caixa/mExp_*100):100;
+    if(D.meta>0 && ritmo_<75) alertaRitmo = ritmo_;
+  }
   let html = '';
   if(sinA.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#7c2d12,#9a3412)">💸 Decisão: ${sinA.map(s=>esc(s.nome)+' ('+esc(s.dataDecisao)+')').join(', ')}</div>`;
   if(cobH.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#c2410c,#ea580c)">📅 Boleto HOJE: ${cobH.map(c=>esc(c.nome)).join(', ')}</div>`;
+  if(emAtraso.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#92400e,#b45309)">⚠️ Em atraso: ${emAtraso.map(c=>esc(c.nome)).join(', ')}</div>`;
+  if(pVencer.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#4c1d95,#5b21b6)">🔄 Renovação próxima: ${pVencer.map(c=>esc(c.nome)).join(', ')}</div>`;
+  if(alertaRitmo!==null) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#7f1d1d,#991b1b)">🔴 Ritmo da meta em ${alertaRitmo}% — segunda metade do mês!</div>`;
   document.getElementById('alerts').innerHTML = html;
 }
 
@@ -440,6 +477,41 @@ function renderPainel() {
       </div>
     </div>
 
+    ${(()=>{
+      const pbd={};
+      clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>!p.historico).forEach(p=>{pbd[p.data]=(pbd[p.data]||0)+p.valor;}));
+      extras.forEach(e=>{pbd[e.data]=(pbd[e.data]||0)+e.valor;});
+      const best=Object.entries(pbd).sort((a,b)=>b[1]-a[1])[0]||null;
+      if(!best) return '';
+      return `<div class="card" style="border-left:3px solid #fbbf24;display:flex;align-items:center;gap:10px;background:rgba(251,191,36,.04)">
+        <span style="font-size:20px">🏆</span>
+        <div><div class="lbl" style="margin-bottom:1px">Melhor Dia do Mês</div>
+        <div style="font-weight:800;font-size:13px;color:#fbbf24">${best[0]} — ${R$(best[1])}</div></div>
+      </div>`;
+    })()}
+    ${(()=>{
+      const bd={};
+      PR.forEach(p=>{bd[p.id]={n:p.n,t:0,q:0,c:p.c,b:p.b};});
+      clients.filter(c=>c.type!=='antigo').forEach(c=>{
+        const v=(c.pagamentos||[]).filter(p=>!p.historico).reduce((s,p)=>s+p.valor,0);
+        if(bd[c.productId]){bd[c.productId].t+=v;bd[c.productId].q++;}
+      });
+      extras.forEach(e=>{if(!bd.ext)bd.ext={n:'Outros',t:0,q:0,c:'#f87171',b:'rgba(248,113,113,.13)'};bd.ext.t+=e.valor||0;bd.ext.q++;});
+      const items=Object.values(bd).filter(x=>x.t>0);
+      if(!items.length) return '';
+      const mx=Math.max(...items.map(x=>x.t));
+      return `<div class="card"><div class="lbl" style="margin-bottom:9px">📊 Breakdown por Produto</div>
+        ${items.map(it=>`<div style="margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="font-size:11px;font-weight:600">${it.n} <span style="font-size:9px;color:rgba(255,255,255,.38)">(${it.q})</span></span>
+            <span class="mono" style="font-weight:800;font-size:11px;color:${it.c}">${R$(it.t)}</span>
+          </div>
+          <div style="height:4px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${mx>0?Math.round(it.t/mx*100):0}%;background:${it.c};border-radius:99px;transition:width 1s"></div>
+          </div>
+        </div>`).join('')}
+      </div>`;
+    })()}
     <div class="card">
       <div class="lbl">🎯 Meta Diária — ${dataLabel}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
@@ -500,11 +572,44 @@ function renderPainel() {
 }
 
 // ─── CLIENTES ─────────────────────────────────────────────────────────────────
+function setFiltroStatus(s) {
+  filtroStatus = s;
+  ['todos','ativo','atraso','cancelado','concluido'].forEach(id => {
+    const btn = document.getElementById('fs-'+id);
+    if(!btn) return;
+    const st = ST.find(x=>x.id===id);
+    const isActive = id===s;
+    const col = id==='todos'?'#38bdf8':(st?.c||'#38bdf8');
+    btn.style.border = isActive ? `1.5px solid ${col}` : '1.5px solid rgba(255,255,255,.1)';
+    btn.style.color = isActive ? col : 'rgba(255,255,255,.38)';
+    btn.style.background = isActive ? col+'22' : 'transparent';
+  });
+  renderClientes();
+}
+
+function setFiltroProd(pid) {
+  filtroProd = pid;
+  ['todos',...PR.map(p=>p.id)].forEach(id => {
+    const btn = document.getElementById('fp-'+id);
+    if(!btn) return;
+    const p = PR.find(x=>x.id===id);
+    const isActive = id===pid;
+    const col = id==='todos'?'#38bdf8':(p?.c||'#38bdf8');
+    btn.style.border = isActive ? `1.5px solid ${col}` : '1.5px solid rgba(255,255,255,.1)';
+    btn.style.color = isActive ? col : 'rgba(255,255,255,.38)';
+    btn.style.background = isActive ? col+'22' : 'transparent';
+  });
+  renderClientes();
+}
+
 function renderClientes() {
   const q = (document.getElementById('search-input')?.value||'').toLowerCase();
   const now = new Date(), Y=now.getFullYear(), M=now.getMonth(), Dd=now.getDate();
   const filtC = D.clients.filter(c=>{
-    return !q || (c.nome||'').toLowerCase().includes(q) || (c.productName||'').toLowerCase().includes(q);
+    const matchQ = !q || (c.nome||'').toLowerCase().includes(q) || (c.productName||'').toLowerCase().includes(q);
+    const matchSt = filtroStatus==='todos' || (c.status||'ativo')===filtroStatus;
+    const matchProd = filtroProd==='todos' || c.productId===filtroProd;
+    return matchQ && matchSt && matchProd;
   });
   const fut = D.clients.filter(c=>c.status!=='cancelado'&&c.status!=='concluido'&&c.type!=='antigo')
     .reduce((s,c)=>{ const p=pr(c.productId); return s+Math.max(0,(p?p.p:0)-tp(c)); }, 0);
