@@ -128,14 +128,8 @@ button:active{transform:scale(.97)}
     <div id="view-clientes" style="display:none;flex-direction:column;flex:1;overflow:hidden">
       <div id="clientes-search-bar">
         <input type="search" placeholder="🔍 Buscar cliente..." id="search-input" oninput="renderClientes()" autocomplete="off" style="margin-bottom:8px">
-        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px">
-          <div class="lbl" style="width:100%;margin-bottom:4px">Status:</div>
-          ${['todos','ativo','atraso','cancelado','concluido'].map(s=>`<button onclick="setFiltroStatus('${s}')" id="fs-${s}" style="padding:3px 8px;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;background:transparent;color:rgba(255,255,255,.38);font-weight:700;font-size:9px;flex-shrink:0">${s==='todos'?'Todos':ST.find(x=>x.id===s)?.l||s}</button>`).join('')}
-        </div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <div class="lbl" style="width:100%;margin-bottom:4px">Produto:</div>
-          ${['todos',...PR.map(p=>p.id)].map(pid=>`<button onclick="setFiltroProd('${pid}')" id="fp-${pid}" style="padding:3px 8px;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;background:transparent;color:rgba(255,255,255,.38);font-weight:700;font-size:9px;flex-shrink:0">${pid==='todos'?'Todos':PR.find(p=>p.id===pid)?.n||pid}</button>`).join('')}
-        </div>
+        <div id="filtros-status" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px"></div>
+        <div id="filtros-prod" style="display:flex;gap:4px;flex-wrap:wrap"></div>
       </div>
       <div id="clientes-list" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>
     </div>
@@ -572,7 +566,7 @@ function renderPainel() {
 }
 
 // ─── CLIENTES ─────────────────────────────────────────────────────────────────
-function setFiltroStatus(s) {
+function setFiltroStatus(s, noRender) {
   filtroStatus = s;
   ['todos','ativo','atraso','cancelado','concluido'].forEach(id => {
     const btn = document.getElementById('fs-'+id);
@@ -584,10 +578,10 @@ function setFiltroStatus(s) {
     btn.style.color = isActive ? col : 'rgba(255,255,255,.38)';
     btn.style.background = isActive ? col+'22' : 'transparent';
   });
-  renderClientes();
+  if(!noRender) renderClientes();
 }
 
-function setFiltroProd(pid) {
+function setFiltroProd(pid, noRender) {
   filtroProd = pid;
   ['todos',...PR.map(p=>p.id)].forEach(id => {
     const btn = document.getElementById('fp-'+id);
@@ -599,10 +593,34 @@ function setFiltroProd(pid) {
     btn.style.color = isActive ? col : 'rgba(255,255,255,.38)';
     btn.style.background = isActive ? col+'22' : 'transparent';
   });
-  renderClientes();
+  if(!noRender) renderClientes();
 }
 
 function renderClientes() {
+  // Build filter buttons if not yet built
+  const fsEl = document.getElementById('filtros-status');
+  if(fsEl && !fsEl.dataset.built) {
+    fsEl.innerHTML = '<div class="lbl" style="width:100%;margin-bottom:4px">Status:</div>' +
+      ['todos','ativo','atraso','cancelado','concluido'].map(s => {
+        const st = ST.find(x=>x.id===s);
+        const l = s==='todos'?'Todos':(st?.l||s);
+        return `<button onclick="setFiltroStatus('${s}')" id="fs-${s}" style="padding:3px 8px;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;background:transparent;color:rgba(255,255,255,.38);font-weight:700;font-size:9px;flex-shrink:0">${l}</button>`;
+      }).join('');
+    fsEl.dataset.built = '1';
+  }
+  const fpEl = document.getElementById('filtros-prod');
+  if(fpEl && !fpEl.dataset.built) {
+    fpEl.innerHTML = '<div class="lbl" style="width:100%;margin-bottom:4px">Produto:</div>' +
+      ['todos',...PR.map(p=>p.id)].map(pid => {
+        const p = PR.find(x=>x.id===pid);
+        const l = pid==='todos'?'Todos':(p?.n||pid);
+        return `<button onclick="setFiltroProd('${pid}')" id="fp-${pid}" style="padding:3px 8px;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;background:transparent;color:rgba(255,255,255,.38);font-weight:700;font-size:9px;flex-shrink:0">${l}</button>`;
+      }).join('');
+    fpEl.dataset.built = '1';
+  }
+  // Apply active styles
+  setFiltroStatus(filtroStatus, true);
+  setFiltroProd(filtroProd, true);
   const q = (document.getElementById('search-input')?.value||'').toLowerCase();
   const now = new Date(), Y=now.getFullYear(), M=now.getMonth(), Dd=now.getDate();
   const filtC = D.clients.filter(c=>{
