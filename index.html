@@ -64,7 +64,7 @@ button:active{transform:scale(.97)}
 #clientes-layout{display:flex;flex-direction:column;flex:1;overflow:hidden}
 #clientes-search-bar{padding:7px 12px;border-bottom:1px solid rgba(56,189,248,.11);flex-shrink:0}
 #clientes-search-bar input{margin-bottom:0}
-#clientes-list{flex:1;overflow-y:auto;padding:10px 12px}
+#clientes-list{flex:1;overflow-y:auto;padding:10px 12px;-webkit-overflow-scrolling:touch}
 /* MODAL */
 #modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);z-index:100;display:flex;align-items:flex-end;justify-content:center;display:none}
 #modal-overlay.open{display:flex}
@@ -125,11 +125,11 @@ button:active{transform:scale(.97)}
     </div>
 
     <!-- CLIENTES TAB -->
-    <div id="view-clientes" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+    <div id="view-clientes" style="display:none;flex-direction:column;flex:1;overflow:hidden;-webkit-overflow-scrolling:touch">
       <div id="clientes-search-bar">
         <input type="search" placeholder="🔍 Buscar cliente..." id="search-input" oninput="renderClientes()" autocomplete="off">
       </div>
-      <div id="clientes-list"></div>
+      <div id="clientes-list" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>
     </div>
 
     <!-- CADASTRO TAB -->
@@ -620,18 +620,33 @@ function renderHistorico() {
 function sinalEntrou(idx) {
   const s = (D.sinais||[])[idx];
   if(!s) return;
-  D.clients.push({nome:s.nome,insta:s.insta||'',segInicio:s.segInicio||0,productId:s.productId,productName:s.productName,fullPrice:s.fullPrice,payMethod:'pix',diaCobranca:null,pagamentos:[{valor:s.valorSinal,data:dh(),mes:ms()+' (sinal)'}],dataInicio:dh(),mesesContrato:0,status:'ativo',type:'novo',temSinal:true});
+  // Abre modal perguntando quanto pagou a mais e forma de pagamento
+  openModal('sinalEntrou', {idx, sinal:s});
+}
+
+function confirmarSinalEntrou(idx, extraValor, payMethod, diaCobranca) {
+  const s = (D.sinais||[])[idx];
+  if(!s) return;
+  const pagamentos = [{valor:s.valorSinal, data:dh(), mes:ms()+' (sinal)'}];
+  if(extraValor>0) pagamentos.push({valor:extraValor, data:dh(), mes:ms()});
+  // Remove o extra do sinal do caixa pois vai virar pagamento do cliente
+  const extraIdx = D.extras.findIndex(e=>e.isSinal && e.sinalNome===s.nome);
+  if(extraIdx>=0) D.extras.splice(extraIdx,1);
+  D.clients.push({nome:s.nome,insta:s.insta||'',segInicio:s.segInicio||0,productId:s.productId,productName:s.productName,fullPrice:s.fullPrice,payMethod:payMethod||'pix',diaCobranca:payMethod==='boleto'?diaCobranca:null,pagamentos,dataInicio:dh(),mesesContrato:0,status:'ativo',type:'novo',temSinal:true});
   D.sinais.splice(idx,1);
   D.ativos++;
-  save(); toast('✅ Entrou!');
+  closeModal(); save(); toast('✅ Entrou! +1 no ecossistema.');
 }
 
 function sinalCorreu(idx) {
   const s = (D.sinais||[])[idx];
   if(!s) return;
-  D.extras.push({valor:s.valorSinal,descricao:`Sinal — ${s.nome} (correu)`,data:dh()});
+  // Remove o extra do sinal que entrou no caixa
+  const extraIdx = D.extras.findIndex(e=>e.isSinal && e.sinalNome===s.nome);
+  if(extraIdx>=0) D.extras.splice(extraIdx,1);
   D.sinais.splice(idx,1);
-  save(); toast('❌ Correu.','#b91c1c');
+  // Pergunta se pediu dinheiro de volta
+  openModal('sinalCorreu', {nome:s.nome, valor:s.valorSinal});
 }
 
 function setStatus(i, st) {
@@ -654,6 +669,11 @@ function confirmDel(i, nome, isExtra) {
   document.getElementById('confirm-overlay').classList.add('open');
 }
 function closeConfirm(){ document.getElementById('confirm-overlay').classList.remove('open'); }
+
+function devolverSinal() {
+  // Sinal já foi removido do caixa em sinalCorreu, não precisa fazer nada a mais
+  closeModal(); save(); toast('❌ Correu. Dinheiro devolvido.','#b91c1c');
+}
 
 function fecharMes() {
   const atM = D.clients.filter(c=>c.type!=='antigo'&&c.status!=='cancelado');
@@ -704,6 +724,23 @@ function buildModal(type) {
   if(type==='antigo') return buildFormEdit({},true);
   if(type==='anterior') return buildFormAnterior();
   if(type==='outros') return buildFormOutros();
+  if(type==='sinalEntrou') {
+    const s = modalCtx.sinal;
+    return `<div style="font-weight:900;font-size:19px;margin-bottom:4px">✅ ${esc(s.nome)} entrou!</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:14px;line-height:1.7">Sinal de ${R$(s.valorSinal)} já estava no caixa.<br>Quanto ele pagou a mais agora?</div>
+      <div class="gf"><div class="lbl">💰 Valor pago a mais (R$)</div><input type="number" inputmode="decimal" id="f-extra" placeholder="0 se não pagou nada a mais"><div style="font-size:10px;color:#34d399;margin-top:4px;opacity:.8">Pode deixar 0 se pagou só o sinal.</div></div>
+      ${buildPyP('pix','')}
+      <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" style="background:#16a34a" onclick="confirmarSinalEntrou(${modalCtx.idx},gn('f-extra'),g('f-pay'),g('f-dia'))">✅ Confirmar</button></div>`;
+  }
+  if(type==='sinalCorreu') {
+    return `<div style="font-weight:900;font-size:19px;margin-bottom:4px">❌ ${esc(modalCtx.nome||'')} correu</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:14px;line-height:1.7">O valor de ${R$(modalCtx.valor||0)} foi retirado do caixa.<br><br>O cliente pediu o dinheiro de volta?</div>
+      <div style="display:flex;gap:7px;margin-bottom:8px">
+        <button onclick="closeModal();save();toast('❌ Correu. Sem devolução.','#b91c1c')" style="flex:1;padding:11px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.2);color:#34d399;border-radius:8px;font-weight:700;font-size:12px">Não pediu de volta</button>
+        <button onclick="devolverSinal()" style="flex:1;padding:11px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:8px;font-weight:700;font-size:12px">Sim, devolveu</button>
+      </div>
+      <button onclick="closeModal();save();toast('❌ Correu. Sem devolução.','#b91c1c')" style="width:100%;padding:9px;border:1.5px solid rgba(255,255,255,.1);border-radius:8px;background:none;color:rgba(255,255,255,.38);font-weight:600;font-size:12px">Cancelar</button>`;
+  }
   if(type==='editMeta') return buildFormNum('🎯 Meta do Mês','','meta',D.meta,'#38bdf8');
   if(type==='editAtivos') return buildFormNum('👥 Ecossistema','','ativos',D.ativos,'#a78bfa');
   if(type==='editClient') { const c=D.clients[modalCtx.idx]; return buildFormEdit(c,false); }
@@ -749,6 +786,30 @@ function buildFormSinal() {
 }
 
 function buildFormEdit(c, isNew) {
+  const extraCamposAntigo = isNew ? `
+    <div style="background:rgba(56,189,248,.06);border:1.5px solid rgba(56,189,248,.15);border-radius:10px;padding:12px;margin-bottom:9px">
+      <div style="font-size:11px;color:#38bdf8;font-weight:700;margin-bottom:10px">💰 Histórico de Pagamentos</div>
+      <div class="lbl">Total já pago (histórico anterior)</div>
+      <input type="number" inputmode="decimal" id="f-hist-total" placeholder="0" style="margin-bottom:9px">
+      <div class="lbl">Pagou algo esse mês?</div>
+      <div style="display:flex;gap:7px;margin-bottom:9px">
+        <div onclick="togglePagouMes(true)" id="pm-sim" style="flex:1;padding:8px;border:2px solid rgba(255,255,255,.1);border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:12px;color:rgba(255,255,255,.38)">✅ Sim</div>
+        <div onclick="togglePagouMes(false)" id="pm-nao" style="flex:1;padding:8px;border:2px solid rgba(255,255,255,.1);border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:12px;color:rgba(255,255,255,.38)">❌ Não</div>
+      </div>
+      <div id="pagou-mes-wrap" style="display:none">
+        <div class="lbl">Valor pago esse mês (R$)</div>
+        <input type="number" inputmode="decimal" id="f-mes-val" placeholder="0" style="margin-bottom:9px">
+        <div class="lbl">Forma de pagamento</div>
+        <div style="display:flex;gap:5px;margin-bottom:9px">${[['pix','PIX','#34d399'],['cartao','Cartão','#38bdf8'],['boleto','Boleto','#fb923c']].map(([v,l,c])=>`<div onclick="selPayMes('${v}','${c}')" data-pay-mes="${v}" style="flex:1;padding:7px 3px;border:2px solid rgba(255,255,255,.07);border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:11px;color:rgba(255,255,255,.38)">${l}</div>`).join('')}</div>
+        <input type="hidden" id="f-mes-pay" value="pix">
+        <div class="lbl">Já pagou o valor integral do produto?</div>
+        <div style="display:flex;gap:7px;margin-bottom:9px">
+          <div onclick="selQuitado(true)" id="quit-sim" style="flex:1;padding:7px;border:2px solid rgba(255,255,255,.07);border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:11px;color:rgba(255,255,255,.38)">✅ Sim, quitou</div>
+          <div onclick="selQuitado(false)" id="quit-nao" style="flex:1;padding:7px;border:2px solid rgba(255,255,255,.07);border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:11px;color:rgba(255,255,255,.38)">❌ Não ainda</div>
+        </div>
+        <input type="hidden" id="f-quitado" value="">
+      </div>
+    </div>` : '';
   return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">${isNew?'📋 Cliente Antigo':'✏️ Editar'}</div>
     <div class="lbl">Nome</div><input type="text" id="f-nome" value="${esc(c.nome||'')}" placeholder="Nome completo" autocomplete="off">
     <div class="lbl">Instagram</div><input type="text" id="f-insta" value="${esc(c.insta||'')}" placeholder="@usuario" autocomplete="off">
@@ -759,8 +820,35 @@ function buildFormEdit(c, isNew) {
     ${buildPP(c.productId||'')}
     ${buildPyP(c.payMethod||'pix',c.diaCobranca||'')}
     ${!isNew?buildStP(c.status||'ativo'):''}
+    ${extraCamposAntigo}
     <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveEdit(${isNew})">✅ Salvar</button></div>`;
 }
+
+function togglePagouMes(sim) {
+  document.getElementById('pagou-mes-wrap').style.display = sim ? 'block' : 'none';
+  document.getElementById('pm-sim').style.border = sim ? '2px solid #34d399' : '2px solid rgba(255,255,255,.1)';
+  document.getElementById('pm-sim').style.color = sim ? '#34d399' : 'rgba(255,255,255,.38)';
+  document.getElementById('pm-nao').style.border = sim ? '2px solid rgba(255,255,255,.1)' : '2px solid #f87171';
+  document.getElementById('pm-nao').style.color = sim ? 'rgba(255,255,255,.38)' : '#f87171';
+}
+
+function selPayMes(v, c) {
+  document.querySelectorAll('[data-pay-mes]').forEach(e=>{
+    const isMe = e.dataset.payMes===v;
+    e.style.border = isMe ? `2px solid ${c}` : '2px solid rgba(255,255,255,.07)';
+    e.style.color = isMe ? c : 'rgba(255,255,255,.38)';
+  });
+  document.getElementById('f-mes-pay').value = v;
+}
+
+function selQuitado(sim) {
+  document.getElementById('quit-sim').style.border = sim ? '2px solid #34d399' : '2px solid rgba(255,255,255,.07)';
+  document.getElementById('quit-sim').style.color = sim ? '#34d399' : 'rgba(255,255,255,.38)';
+  document.getElementById('quit-nao').style.border = sim ? '2px solid rgba(255,255,255,.07)' : '2px solid #f87171';
+  document.getElementById('quit-nao').style.color = sim ? 'rgba(255,255,255,.38)' : '#f87171';
+  document.getElementById('f-quitado').value = sim ? 'sim' : 'nao';
+}
+
 
 function buildFormAnterior() {
   let prodHtml = `<div class="lbl">1. Produto</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:9px">`;
@@ -840,8 +928,10 @@ function saveSinal() {
   if(!nome||!prod||!sinal||!decisao){ toast('Preencha todos os campos','#b91c1c'); return; }
   const p=pr(prod);
   if(!D.sinais) D.sinais=[];
+  // Sinal entra direto no caixa como extra
+  D.extras.push({valor:sinal, descricao:`Sinal — ${nome}`, data:dh(), isSinal:true, sinalNome:nome});
   D.sinais.push({id:Date.now(),nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p.n,fullPrice:p.p,valorSinal:sinal,dataDecisao:decisao,cadastro:dh()});
-  closeModal(); save(); toast('💸 Sinal salvo!');
+  closeModal(); save(); toast('💸 Sinal salvo! Valor já no caixa.');
 }
 
 function saveEdit(isNew) {
@@ -851,8 +941,27 @@ function saveEdit(isNew) {
   const p=pr(prod);
   const obj={nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p?.n||'',fullPrice:p?.p||0,payMethod:g('f-pay')||'pix',diaCobranca:g('f-pay')==='boleto'?g('f-dia'):null,dataInicio:g('f-dtIn')||dh(),mesesContrato:gi('f-meses'),obs:g('f-obs')};
   if(isNew){
-    obj.pagamentos=[]; obj.status='ativo'; obj.type='antigo';
-    D.clients.push(obj); D.ativos++;
+    // Processar campos do cliente antigo
+    const histTotal = gn('f-hist-total');
+    const pagouMes = document.getElementById('pagou-mes-wrap')?.style.display === 'block';
+    const mesVal = gn('f-mes-val');
+    const mesPay = g('f-mes-pay')||'pix';
+    const quitado = g('f-quitado')==='sim';
+    const pagamentos = [];
+    // Histórico anterior (não entra no caixa)
+    if(histTotal>0) pagamentos.push({valor:histTotal, data:obj.dataInicio||dh(), mes:'Histórico anterior', historico:true});
+    // Pagamento desse mês (entra no caixa)
+    if(pagouMes && mesVal>0) pagamentos.push({valor:mesVal, data:dh(), mes:ms(), payMethod:mesPay});
+    obj.pagamentos = pagamentos;
+    obj.status = quitado ? 'concluido' : 'ativo';
+    obj.type = 'antigo';
+    obj.payMethod = mesPay;
+    D.clients.push(obj);
+    D.ativos++;
+    // Se pagou esse mês, entra no caixa como extra
+    if(pagouMes && mesVal>0) {
+      D.extras.push({valor:mesVal, descricao:`Pgto mês — ${nome} (antigo)`, data:dh(), isAntigo:true});
+    }
   } else {
     const i=modalCtx.idx;
     obj.status=g('f-status')||D.clients[i].status||'ativo';
