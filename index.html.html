@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>CD Grupo — Painel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:#040d1a;font-family:'Sora',sans-serif;color:#edf4ff;height:100vh;display:flex;flex-direction:column;overflow:hidden;-webkit-font-smoothing:antialiased}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:rgba(56,189,248,.25);border-radius:99px}
+input,button{font-family:'Sora',sans-serif;-webkit-appearance:none}
+input{background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);color:#edf4ff;padding:10px 12px;border-radius:8px;font-size:14px;width:100%;display:block;margin-bottom:9px;outline:none}
+input:focus{border-color:rgba(56,189,248,.5);box-shadow:0 0 0 3px rgba(56,189,248,.1)}
+button{cursor:pointer;touch-action:manipulation}
+button:active{transform:scale(.97)}
+.lbl{display:block;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:rgba(255,255,255,.38);font-weight:700;margin-bottom:5px}
+.card{background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-radius:12px;padding:13px 14px}
+.gf{background:rgba(52,211,153,.06);border:1.5px solid rgba(52,211,153,.2);border-radius:10px;padding:12px;margin-bottom:9px}
+.gf input{background:rgba(52,211,153,.07);border-color:rgba(52,211,153,.28);color:#34d399;margin-bottom:0}
+.of{background:rgba(251,146,60,.06);border:1.5px solid rgba(251,146,60,.2);border-radius:10px;padding:12px;margin-bottom:9px}
+.of input{background:rgba(251,146,60,.07);border-color:rgba(251,146,60,.28);color:#fb923c;margin-bottom:0}
+.btns{display:flex;gap:7px;margin-top:12px}
+.btn-cancel{flex:1;padding:10px;border:1.5px solid rgba(255,255,255,.1);border-radius:8px;background:none;color:rgba(255,255,255,.38);font-weight:600;font-size:13px}
+.btn-save{flex:2;padding:10px;border:none;border-radius:8px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#16a34a;color:#fff;padding:9px 20px;border-radius:11px;font-weight:700;font-size:12px;z-index:999;white-space:nowrap;animation:fU .3s ease;pointer-events:none}
+@keyframes fU{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes bl{0%,100%{opacity:1}50%{opacity:.3}}
+.pu{animation:bl 2s infinite}
+.mono{font-family:'JetBrains Mono',monospace}
+.fi{animation:fU .25s ease}
+#app{display:flex;flex-direction:column;height:100vh}
+/* TOPBAR */
+#topbar{display:flex;align-items:center;justify-content:space-between;padding:0 14px;height:50px;background:linear-gradient(135deg,#071428,#0a1c38);border-bottom:1px solid rgba(56,189,248,.11);flex-shrink:0}
+.logo{display:flex;align-items:center;gap:8px}
+.logo-icon{width:30px;height:30px;background:linear-gradient(135deg,#38bdf8,#6366f1);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px}
+.logo-text{font-weight:900;font-size:11px;letter-spacing:3.5px;color:#edf4ff}
+.logo-sub{font-size:7px;letter-spacing:2px;color:rgba(56,189,248,.55);text-transform:uppercase}
+.tabs{display:flex;gap:1px;background:rgba(255,255,255,.04);border-radius:8px;padding:2px}
+.tab-btn{padding:4px 8px;border:none;border-radius:6px;background:transparent;color:rgba(255,255,255,.38);font-weight:700;font-size:9px;transition:.15s}
+.tab-btn.active{background:rgba(56,189,248,.18);color:#38bdf8}
+.topright{display:flex;align-items:center;gap:8px}
+.sync-dot{width:5px;height:5px;border-radius:50%;background:#fbbf24}
+.sync-dot.ok{background:#34d399}
+.sync-txt{font-size:9px;font-weight:600;color:#fbbf24}
+.sync-txt.ok{color:#34d399}
+#clock{font-weight:600;font-size:10px;color:rgba(255,255,255,.38);font-family:'JetBrains Mono',monospace;letter-spacing:2px}
+.btn-reg{padding:5px 11px;background:linear-gradient(135deg,#2563eb,#1d4ed8);color:#fff;border:none;border-radius:7px;font-weight:700;font-size:10px}
+/* ALERTS */
+.alert-bar{padding:6px 14px;display:flex;align-items:center;gap:7px;flex-shrink:0;font-size:11px;font-weight:700;color:#fff}
+/* CONTENT */
+#content{flex:1;display:flex;overflow:hidden}
+/* PAINEL */
+#painel-layout{display:flex;flex:1;overflow:hidden}
+#sidebar{width:230px;flex-shrink:0;border-right:1px solid rgba(56,189,248,.11);display:flex;flex-direction:column;overflow:hidden}
+#sidebar-sinais{flex-shrink:0;border-bottom:1px solid rgba(251,146,60,.2)}
+#sidebar-sinais-header{padding:7px 11px 4px;font-size:8px;color:#fb923c;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+#sidebar-sinais-list{max-height:220px;overflow-y:auto;padding:0 5px 5px}
+#sidebar-clients-header{padding:7px 11px 5px;border-bottom:1px solid rgba(56,189,248,.11);flex-shrink:0}
+#sidebar-clients-list{flex:1;overflow-y:auto;padding:5px}
+#main{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:9px}
+/* CLIENTES TAB */
+#clientes-layout{display:flex;flex-direction:column;flex:1;overflow:hidden}
+#clientes-search-bar{padding:7px 12px;border-bottom:1px solid rgba(56,189,248,.11);flex-shrink:0}
+#clientes-search-bar input{margin-bottom:0}
+#clientes-list{flex:1;overflow-y:auto;padding:10px 12px}
+/* MODAL */
+#modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);z-index:100;display:flex;align-items:flex-end;justify-content:center;display:none}
+#modal-overlay.open{display:flex}
+#modal-box{background:#071428;border:1px solid rgba(56,189,248,.11);border-radius:17px 17px 0 0;padding:18px 17px 32px;width:100%;max-width:540px;max-height:92vh;overflow-y:auto;box-shadow:0 -20px 60px rgba(0,0,0,.8)}
+/* CONFIRM */
+#confirm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.85);backdrop-filter:blur(10px);z-index:200;display:none;align-items:center;justify-content:center;padding:14px}
+#confirm-overlay.open{display:flex}
+#confirm-box{background:#071428;border:1px solid rgba(248,113,113,.2);border-radius:14px;padding:22px 18px;width:100%;max-width:310px;text-align:center}
+/* SYNC MODAL */
+#sync-modal{position:fixed;inset:0;background:rgba(0,0,0,.9);backdrop-filter:blur(14px);z-index:300;display:none;align-items:center;justify-content:center;padding:16px}
+#sync-modal.open{display:flex}
+#sync-box{background:#071428;border:1px solid rgba(56,189,248,.2);border-radius:16px;padding:22px 18px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto}
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- ALERT BARS -->
+  <div id="alerts"></div>
+
+  <!-- TOPBAR -->
+  <div id="topbar">
+    <div class="logo">
+      <div class="logo-icon">🔑</div>
+      <div><div class="logo-text">CD GRUPO</div><div class="logo-sub">Painel</div></div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="setTab('painel')" id="tab-painel">📊 Painel</button>
+      <button class="tab-btn" onclick="setTab('clientes')" id="tab-clientes">👥 Clientes</button>
+      <button class="tab-btn" onclick="setTab('cadastro')" id="tab-cadastro">📋 Cadastro</button>
+      <button class="tab-btn" onclick="setTab('historico')" id="tab-historico">📅 Histórico</button>
+    </div>
+    <div class="topright">
+      <div style="display:flex;align-items:center;gap:3px">
+        <div class="sync-dot pu" id="sync-dot"></div>
+        <span class="sync-txt" id="sync-txt">...</span>
+      </div>
+      <button class="btn-reg" onclick="openModal('choice')">+ Reg.</button>
+      <span id="clock" class="mono"></span>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div id="content">
+    <!-- PAINEL TAB -->
+    <div id="view-painel" style="display:flex;flex:1;overflow:hidden">
+      <div id="sidebar">
+        <div id="sidebar-sinais" style="display:none">
+          <div id="sidebar-sinais-header"></div>
+          <div id="sidebar-sinais-list"></div>
+        </div>
+        <div id="sidebar-clients-header">
+          <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#38bdf8;font-weight:700">Clientes do Mês</div>
+          <div id="sidebar-count" style="font-size:9px;color:rgba(255,255,255,.38);margin-top:1px">0 registros</div>
+        </div>
+        <div id="sidebar-clients-list"></div>
+      </div>
+      <div id="main"></div>
+    </div>
+
+    <!-- CLIENTES TAB -->
+    <div id="view-clientes" style="display:none;flex-direction:column;flex:1;overflow:hidden">
+      <div id="clientes-search-bar">
+        <input type="search" placeholder="🔍 Buscar cliente..." id="search-input" oninput="renderClientes()" autocomplete="off">
+      </div>
+      <div id="clientes-list"></div>
+    </div>
+
+    <!-- CADASTRO TAB -->
+    <div id="view-cadastro" style="display:none;flex:1;overflow-y:auto;padding:12px 14px"></div>
+
+    <!-- HISTORICO TAB -->
+    <div id="view-historico" style="display:none;flex:1;overflow-y:auto;padding:12px 14px"></div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div id="modal-box"></div>
+</div>
+
+<!-- CONFIRM DELETE -->
+<div id="confirm-overlay">
+  <div id="confirm-box">
+    <div style="font-size:28px;margin-bottom:7px">🗑️</div>
+    <div style="font-weight:800;font-size:14px;color:#edf4ff;margin-bottom:4px">Remover?</div>
+    <div id="confirm-name" style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:18px"></div>
+    <div style="display:flex;gap:6px">
+      <button class="btn-cancel" style="flex:1;padding:9px;border-radius:8px" onclick="closeConfirm()">Cancelar</button>
+      <button id="confirm-ok" style="flex:1;padding:9px;border:none;border-radius:8px;background:#b91c1c;color:#fff;font-weight:700;font-size:12px">Remover</button>
+    </div>
+  </div>
+</div>
+
+<!-- SYNC MODAL -->
+<div id="sync-modal">
+  <div id="sync-box">
+    <div style="font-weight:900;font-size:18px;color:#edf4ff;margin-bottom:4px">🔗 Sincronização</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:16px;line-height:1.7">Para compartilhar dados entre dispositivos, use o <strong style="color:#38bdf8">JSONBin.io</strong> (gratuito).<br>1. Acesse <strong>jsonbin.io</strong> → crie conta grátis<br>2. Vá em API Keys → copie a Master Key<br>3. Cole abaixo e clique em Conectar</div>
+    <span class="lbl">Master Key (X-Master-Key)</span>
+    <input type="text" id="jb-key" placeholder="$2b$10$..." style="margin-bottom:9px">
+    <span class="lbl">Bin ID (deixe vazio para criar novo)</span>
+    <input type="text" id="jb-bin" placeholder="64abc123..." style="margin-bottom:12px">
+    <div style="display:flex;gap:7px">
+      <button onclick="closeSyncModal()" style="flex:1;padding:10px;border:1.5px solid rgba(255,255,255,.1);border-radius:8px;background:none;color:rgba(255,255,255,.38);font-weight:600;font-size:13px">Cancelar</button>
+      <button onclick="saveSync()" style="flex:2;padding:10px;border:none;border-radius:8px;background:#0f766e;color:#fff;font-weight:700;font-size:13px">Conectar</button>
+    </div>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:9px;color:rgba(255,255,255,.38);font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">Backup Manual</div>
+      <div style="display:flex;gap:7px">
+        <button onclick="exportData()" style="flex:1;padding:8px;border:1px solid rgba(56,189,248,.2);border-radius:7px;background:rgba(56,189,248,.07);color:#38bdf8;font-weight:700;font-size:11px">📤 Exportar JSON</button>
+        <button onclick="importData()" style="flex:1;padding:8px;border:1px solid rgba(167,139,250,.2);border-radius:7px;background:rgba(167,139,250,.07);color:#a78bfa;font-weight:700;font-size:11px">📥 Importar JSON</button>
+      </div>
+    </div>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
+  </div>
+</div>
+
+<script>
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
+const PR = [
+  {id:'es',n:'Esmeralda',p:30000,c:'#38bdf8',b:'rgba(56,189,248,.13)'},
+  {id:'fm',n:'Formação',p:20000,c:'#a78bfa',b:'rgba(167,139,250,.13)'},
+  {id:'mc',n:'M.Chave',p:2900,c:'#34d399',b:'rgba(52,211,153,.13)'}
+];
+const ST = [
+  {id:'ativo',l:'Ativo',c:'#34d399',b:'rgba(52,211,153,.13)'},
+  {id:'atraso',l:'Em Atraso',c:'#fb923c',b:'rgba(251,146,60,.13)'},
+  {id:'cancelado',l:'Cancelado',c:'#f87171',b:'rgba(248,113,113,.13)'},
+  {id:'concluido',l:'Concluído',c:'#a78bfa',b:'rgba(167,139,250,.13)'}
+];
+const LS_KEY = 'cdg_v20';
+const MK_KEY = 'cdg_mk';
+const SYNC_KEY = 'cdg_sync';
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let D = {clients:[],extras:[],sinais:[],meta:0,ativos:0,history:{}};
+let curTab = 'painel';
+let confirmCb = null;
+let syncCfg = null;
+let syncTimer = null;
+
+// ─── UTILS ───────────────────────────────────────────────────────────────────
+const dh = () => new Date().toLocaleDateString('pt-BR');
+const ms = () => new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+const mk = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
+const R$ = n => 'R$ ' + (n||0).toLocaleString('pt-BR');
+const isU = (y,m,d) => new Date(y,m,d).getDay() !== 0;
+const wdT = (y,m) => { let c=0,n=new Date(y,m+1,0).getDate(); for(let i=1;i<=n;i++) if(isU(y,m,i))c++; return c; };
+const wdA = (y,m,d) => { let c=0; for(let i=1;i<=d;i++) if(isU(y,m,i))c++; return c; };
+const wdR = (y,m,d) => { let c=0,n=new Date(y,m+1,0).getDate(); for(let i=d+1;i<=n;i++) if(isU(y,m,i))c++; return c; };
+const dAt = s => { if(!s)return null; const[d,m,y]=s.split('/').map(Number); if(!y)return null; const t=new Date(y,m-1,d),n=new Date(); n.setHours(0,0,0,0); t.setHours(0,0,0,0); return Math.round((t-n)/86400000); };
+const mDe = (ds,Y,M) => { if(!ds)return 0; const p=ds.split('/').map(Number); if(!p[2])return 0; return Math.max(0,(Y-p[2])*12+(M-(p[1]-1))); };
+const tp = c => (c.pagamentos||[]).reduce((s,p)=>s+(p.valor||0),0);
+const si = id => ST.find(s=>s.id===id)||ST[0];
+const pr = id => PR.find(p=>p.id===id);
+const norm = d => ({clients:d.clients||[],extras:d.extras||[],sinais:d.sinais||[],meta:d.meta||0,ativos:d.ativos||0,history:d.history||{}});
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function toast(msg, col) {
+  document.querySelectorAll('.toast').forEach(e=>e.remove());
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.style.background = col||'#16a34a';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3000);
+}
+
+// ─── STORAGE ──────────────────────────────────────────────────────────────────
+function saveLocal() {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
+}
+
+function loadLocal() {
+  try {
+    const r = localStorage.getItem(LS_KEY);
+    if(r) { D = norm(JSON.parse(r)); return true; }
+  } catch(e){}
+  return false;
+}
+
+function loadSyncCfg() {
+  try { syncCfg = JSON.parse(localStorage.getItem(SYNC_KEY)||'null'); } catch(e){}
+}
+
+async function syncPull() {
+  if(!syncCfg?.key || !syncCfg?.bin) return;
+  try {
+    const r = await fetch(`https://api.jsonbin.io/v3/b/${syncCfg.bin}/latest`,{
+      headers:{'X-Master-Key':syncCfg.key}
+    });
+    if(!r.ok) return;
+    const j = await r.json();
+    D = norm(j.record);
+    saveLocal();
+    renderAll();
+    setSynced(true);
+  } catch(e){ setSynced(false); }
+}
+
+async function syncPush() {
+  saveLocal();
+  if(!syncCfg?.key || !syncCfg?.bin) return;
+  try {
+    await fetch(`https://api.jsonbin.io/v3/b/${syncCfg.bin}`,{
+      method:'PUT',
+      headers:{'X-Master-Key':syncCfg.key,'Content-Type':'application/json'},
+      body:JSON.stringify(D)
+    });
+    setSynced(true);
+  } catch(e){ setSynced(false); }
+}
+
+function setSynced(ok) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-txt');
+  if(ok){ dot.className='sync-dot ok pu'; txt.className='sync-txt ok'; txt.textContent='✅ Sync'; }
+  else { dot.className='sync-dot pu'; txt.className='sync-txt'; txt.textContent='⚠️ Local'; }
+}
+
+async function save() {
+  saveLocal();
+  await syncPush();
+  renderAll();
+}
+
+async function saveSync() {
+  const key = document.getElementById('jb-key').value.trim();
+  const bin = document.getElementById('jb-bin').value.trim();
+  if(!key){ toast('Cole a Master Key','#b91c1c'); return; }
+  document.getElementById('sync-txt').textContent = '🔄...';
+  try {
+    let binId = bin;
+    if(!binId) {
+      // Create new bin
+      const r = await fetch('https://api.jsonbin.io/v3/b',{
+        method:'POST',
+        headers:{'X-Master-Key':key,'Content-Type':'application/json','X-Bin-Name':'CDGrupo'},
+        body:JSON.stringify(D)
+      });
+      if(!r.ok){ toast('Chave inválida','#b91c1c'); return; }
+      const j = await r.json();
+      binId = j.metadata.id;
+    }
+    syncCfg = {key, bin:binId};
+    localStorage.setItem(SYNC_KEY, JSON.stringify(syncCfg));
+    await syncPush();
+    closeSyncModal();
+    toast('✅ Sync conectado!');
+    document.getElementById('jb-bin').value = binId;
+  } catch(e){ toast('Erro: '+e.message,'#b91c1c'); }
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(D,null,2)],{type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'cdgrupo_'+mk()+'.json';
+  a.click();
+  toast('📤 Exportado!');
+}
+
+function importData() {
+  document.getElementById('import-file').click();
+}
+
+function handleImport(e) {
+  const f = e.target.files[0];
+  if(!f) return;
+  const reader = new FileReader();
+  reader.onload = async ev => {
+    try {
+      D = norm(JSON.parse(ev.target.result));
+      await save();
+      toast('✅ Importado!');
+    } catch(e){ toast('Arquivo inválido','#b91c1c'); }
+  };
+  reader.readAsText(f);
+}
+
+function closeSyncModal(){ document.getElementById('sync-modal').classList.remove('open'); }
+function openSyncModal(){
+  loadSyncCfg();
+  if(syncCfg){ document.getElementById('jb-key').value=syncCfg.key||''; document.getElementById('jb-bin').value=syncCfg.bin||''; }
+  document.getElementById('sync-modal').classList.add('open');
+}
+
+// ─── MONTH AUTO-CLOSE ─────────────────────────────────────────────────────────
+function checkMonthRollover() {
+  const cur = mk();
+  const prev = localStorage.getItem(MK_KEY);
+  if(prev && prev !== cur && (D.clients.length > 0 || D.extras.length > 0)) {
+    const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tp(c),0)
+                + D.extras.reduce((s,e)=>s+(e.valor||0),0);
+    const pct = D.meta>0 ? Math.min(100,Math.round(caixa/D.meta*100)) : 0;
+    D.history[prev] = {clients:[...D.clients],extras:[...D.extras],meta:D.meta,caixa,pct,date:dh()};
+    D.clients = []; D.extras = []; D.sinais = []; D.meta = 0;
+  }
+  localStorage.setItem(MK_KEY, cur);
+}
+
+// ─── TABS ─────────────────────────────────────────────────────────────────────
+function setTab(t) {
+  curTab = t;
+  ['painel','clientes','cadastro','historico'].forEach(id => {
+    document.getElementById('view-'+id).style.display = id===t ? (id==='painel'?'flex':'block') : 'none';
+    document.getElementById('tab-'+id).classList.toggle('active', id===t);
+  });
+  renderAll();
+}
+
+// ─── CLOCK ───────────────────────────────────────────────────────────────────
+setInterval(()=>{ document.getElementById('clock').textContent = new Date().toLocaleTimeString('pt-BR',{hour12:false}); }, 1000);
+
+// ─── RENDER ALL ───────────────────────────────────────────────────────────────
+function renderAll() {
+  renderAlerts();
+  if(curTab==='painel') renderPainel();
+  if(curTab==='clientes') renderClientes();
+  if(curTab==='cadastro') renderCadastro();
+  if(curTab==='historico') renderHistorico();
+}
+
+// ─── ALERTS ──────────────────────────────────────────────────────────────────
+function renderAlerts() {
+  const now = new Date(), D_ = now.getDate();
+  const sinA = (D.sinais||[]).filter(s=>{ const d=dAt(s.dataDecisao); return d!==null&&d<=2&&d>=0; });
+  const cobH = D.clients.filter(c=>c.type!=='antigo'&&c.payMethod==='boleto'&&parseInt(c.diaCobranca)===D_&&c.status!=='cancelado'&&c.status!=='concluido');
+  let html = '';
+  if(sinA.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#7c2d12,#9a3412)">💸 Decisão: ${sinA.map(s=>esc(s.nome)+' ('+esc(s.dataDecisao)+')').join(', ')}</div>`;
+  if(cobH.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#c2410c,#ea580c)">📅 Boleto HOJE: ${cobH.map(c=>esc(c.nome)).join(', ')}</div>`;
+  document.getElementById('alerts').innerHTML = html;
+}
+
+// ─── PAINEL ───────────────────────────────────────────────────────────────────
+function renderPainel() {
+  const now = new Date(), Y=now.getFullYear(), M=now.getMonth(), Dd=now.getDate();
+  const {clients,extras,sinais,meta,ativos} = D;
+  const caixa = clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tp(c),0) + extras.reduce((s,e)=>s+(e.valor||0),0);
+  const pct = meta>0 ? Math.min(100,Math.round(caixa/meta*100)) : 0;
+  const TWD=wdT(Y,M), wdP_=wdA(Y,M,Dd), wdL_=wdR(Y,M,Dd);
+  const mD = TWD>0 ? meta/TWD : 0;
+  const mExp = mD*wdP_;
+  const diff = caixa-mExp;
+  const ritmo = mExp>0 ? Math.round(caixa/mExp*100) : (caixa>0?100:0);
+  const dC = diff>=0?'#34d399':'#f87171';
+  const dI = diff>=0?'📈':'⚠️';
+  const rC = ritmo>=100?'#16a34a':ritmo>=75?'#1d4ed8':'#b91c1c';
+  const rI = ritmo>=100?'🚀':ritmo>=75?'🔵':'🔴';
+  const rMsg = ritmo>=100?`+${Math.round(ritmo-100)}% acima`:ritmo>=75?`falta ${Math.round(100-ritmo)}%`:`${Math.round(100-ritmo)}% abaixo`;
+  const sideC = clients.filter(c=>c.type!=='antigo');
+  const dataLabel = now.toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'});
+
+  // Sidebar sinais
+  const sinaisEl = document.getElementById('sidebar-sinais');
+  if((sinais||[]).length > 0) {
+    sinaisEl.style.display='block';
+    document.getElementById('sidebar-sinais-header').textContent = `💸 Sinais (${sinais.length})`;
+    document.getElementById('sidebar-sinais-list').innerHTML = (sinais||[]).map((s,idx)=>{
+      const p=pr(s.productId), df=dAt(s.dataDecisao), urg=df!==null&&df<=2;
+      const dfTxt = df===null?'':(df===0?' (hoje)':df>0?` (${df}d)`:` (${Math.abs(df)}d atraso)`);
+      return `<div style="background:${urg?'rgba(251,146,60,.1)':'rgba(255,255,255,.034)'};border:1px solid ${urg?'rgba(251,146,60,.38)':'rgba(255,255,255,.07)'};border-left:3px solid ${urg?'#fb923c':'#fbbf24'};border-radius:8px;padding:7px 8px;margin-bottom:4px">
+        <div style="font-weight:700;font-size:11px;margin-bottom:2px">${esc(s.nome)}</div>
+        <div style="font-size:10px;color:#34d399;font-weight:700;margin-bottom:2px">💸 ${R$(s.valorSinal)}</div>
+        <div style="font-size:9px;color:${urg?'#fb923c':'rgba(255,255,255,.38)'};margin-bottom:5px">📅 ${esc(s.dataDecisao)}${urg?' ⚠️':''}${dfTxt}</div>
+        <div style="display:flex;gap:3px">
+          <button onclick="sinalEntrou(${idx})" style="flex:1;padding:4px;background:#16a34a;border:none;border-radius:5px;color:#fff;font-weight:700;font-size:9px">✅ Continua</button>
+          <button onclick="sinalCorreu(${idx})" style="flex:1;padding:4px;background:#b91c1c;border:none;border-radius:5px;color:#fff;font-weight:700;font-size:9px">❌ Correu</button>
+        </div>
+      </div>`;
+    }).join('');
+  } else {
+    sinaisEl.style.display='none';
+  }
+
+  // Sidebar clients
+  document.getElementById('sidebar-count').textContent = sideC.length+' registros';
+  const scList = document.getElementById('sidebar-clients-list');
+  if(sideC.length===0){
+    scList.innerHTML='<div style="padding:20px;text-align:center;color:rgba(255,255,255,.38);font-size:11px;line-height:1.8">Nenhum<br>registro ainda</div>';
+  } else {
+    scList.innerHTML = sideC.map(c=>{
+      const ri = clients.indexOf(c), s_=si(c.status);
+      const isBH = c.payMethod==='boleto'&&parseInt(c.diaCobranca)===Dd&&c.status!=='cancelado'&&c.status!=='concluido';
+      return `<div style="background:rgba(255,255,255,.034);border:1px solid rgba(255,255,255,.07);border-left:3px solid ${s_.c};border-radius:8px;padding:7px 8px;position:relative;margin-bottom:4px">
+        <button onclick="confirmDel(${ri},'${esc(c.nome).replace(/'/g,"\\'")}',false)" style="position:absolute;top:4px;right:4px;background:none;border:none;color:rgba(255,255,255,.38);font-size:10px;padding:2px">✕</button>
+        <div style="font-weight:700;font-size:11px;margin-bottom:2px;padding-right:14px">${esc(c.nome)}</div>
+        <div style="display:flex;justify-content:space-between;background:rgba(52,211,153,.08);border-radius:5px;padding:2px 6px">
+          <span style="font-size:8px;color:#34d399">${esc(c.productName||'')}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:9px;color:#34d399">${R$(tp(c))}</span>
+        </div>
+        ${isBH?`<button onclick="openModal('boletoPago',{idx:${ri}})" style="margin-top:3px;width:100%;padding:3px;background:#c2410c;border:none;color:#fff;border-radius:5px;font-weight:700;font-size:8px">📅 Foi Pago!</button>`:''}
+      </div>`;
+    }).join('');
+  }
+
+  // Main content
+  const mainEl = document.getElementById('main');
+  const historicoItems = clients.filter(c=>c.type!=='antigo');
+  const extrasItems = extras;
+
+  mainEl.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+      <div class="card" style="border-top:2px solid #38bdf8">
+        <div class="lbl">Meta do Mês</div>
+        <div class="mono" style="font-weight:900;font-size:22px;color:#38bdf8;line-height:1.1;margin-bottom:7px">${R$(meta)}</div>
+        <button onclick="openModal('editMeta')" style="width:100%;padding:5px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.22);color:#38bdf8;border-radius:6px;font-weight:700;font-size:9px">✏️ Editar Meta</button>
+      </div>
+      <div class="card" style="border-top:2px solid #a78bfa">
+        <div class="lbl">Ecossistema</div>
+        <div class="mono" style="font-weight:900;font-size:38px;color:#a78bfa;line-height:1;margin-bottom:7px">${ativos}</div>
+        <button onclick="openModal('editAtivos')" style="width:100%;padding:5px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.22);color:#a78bfa;border-radius:6px;font-weight:700;font-size:9px">✏️ Editar</button>
+      </div>
+    </div>
+
+    <div class="card" style="background:rgba(52,211,153,.05);border-color:rgba(52,211,153,.2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div class="lbl" style="margin-bottom:0">Caixa Atual</div>
+        <div class="mono" style="font-weight:900;font-size:20px;color:#34d399">${R$(caixa)}</div>
+      </div>
+      <div style="height:6px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden;margin-bottom:4px">
+        <div style="height:100%;width:${pct}%;background:${pct>=100?'linear-gradient(90deg,#34d399,#10b981)':'linear-gradient(90deg,#38bdf8,#a78bfa)'};border-radius:99px;transition:width 1.2s ease"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between">
+        <span style="font-size:9px;color:rgba(255,255,255,.38)">${pct}% da meta</span>
+        <span style="font-size:9px;color:rgba(255,255,255,.38)">${R$(meta)}</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="lbl">🎯 Meta Diária — ${dataLabel}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
+        <div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-left:2px solid #38bdf8;border-radius:7px;padding:8px 10px">
+          <div class="lbl" style="margin-bottom:2px">Meta/dia útil</div>
+          <div class="mono" style="font-weight:800;font-size:13px;color:#38bdf8">${R$(mD)}</div>
+          <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:1px">${TWD} dias úteis</div>
+        </div>
+        <div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-left:2px solid #a78bfa;border-radius:7px;padding:8px 10px">
+          <div class="lbl" style="margin-bottom:2px">Dias restantes</div>
+          <div class="mono" style="font-weight:800;font-size:20px;color:#a78bfa">${wdL_}</div>
+          <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:1px">${wdP_} passados</div>
+        </div>
+        <div style="background:${diff>=0?'rgba(52,211,153,.07)':'rgba(248,113,113,.07)'};border:1.5px solid ${diff>=0?'rgba(52,211,153,.25)':'rgba(248,113,113,.25)'};border-left:3px solid ${dC};border-radius:7px;padding:8px 10px">
+          <div class="lbl" style="margin-bottom:2px">Status da Meta ${dI}</div>
+          <div class="mono" style="font-weight:900;font-size:13px;color:${dC};margin-bottom:1px">${diff>=0?'+':''}${R$(Math.abs(diff))}</div>
+          <div style="font-size:9px;color:${dC};font-weight:600">${diff>=0?'adiantado':'atrasado'}</div>
+          <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:1px">Esperado: ${R$(mExp)}</div>
+        </div>
+        <div style="background:${rC}12;border:1.5px solid ${rC}44;border-left:3px solid ${rC};border-radius:7px;padding:8px 10px">
+          <div class="lbl" style="margin-bottom:2px">Ritmo ${rI}</div>
+          <div class="mono" style="font-weight:900;font-size:20px;color:${rC}">${ritmo}%</div>
+          <div style="font-size:9px;color:${rC};font-weight:600;margin-top:1px">${rMsg}</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="font-size:8px;color:rgba(255,255,255,.38);font-weight:700;text-transform:uppercase;letter-spacing:2px;padding-bottom:5px;border-bottom:1px solid rgba(56,189,248,.11)">Histórico do Mês</div>
+    ${historicoItems.length===0&&extrasItems.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:22px;font-size:12px;line-height:1.9">Nenhum registro<br><span style="opacity:.6">Use + Reg.</span></div>':''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:6px">
+      ${historicoItems.map(c=>{
+        const s_=si(c.status);
+        return `<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-left:3px solid ${s_.c};border-radius:9px;padding:9px 10px">
+          <div style="font-weight:700;font-size:11px;margin-bottom:1px">${esc(c.nome)}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.38);margin-bottom:1px">${esc(c.productName||'')}</div>
+          <div style="font-size:8px;color:${s_.c};font-weight:600;margin-bottom:4px">● ${s_.l}</div>
+          <div style="display:flex;justify-content:space-between;background:rgba(52,211,153,.07);border-radius:5px;padding:2px 6px">
+            <span style="font-size:8px;color:#34d399">💰</span>
+            <span class="mono" style="font-weight:700;color:#34d399;font-size:9px">${R$(tp(c))}</span>
+          </div>
+        </div>`;
+      }).join('')}
+      ${extrasItems.map((e,i)=>`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-left:3px solid #a78bfa;border-radius:9px;padding:9px 10px">
+        <div style="font-weight:700;font-size:11px;margin-bottom:2px">— <span style="font-size:7px;padding:1px 4px;border-radius:20px;background:rgba(167,139,250,.12);color:#a78bfa">OUT</span></div>
+        <div style="font-size:9px;color:rgba(255,255,255,.38);margin-bottom:4px">${esc(e.descricao)}</div>
+        <div style="display:flex;justify-content:space-between;background:rgba(52,211,153,.07);border-radius:5px;padding:2px 6px">
+          <span style="font-size:8px;color:#34d399">💰</span>
+          <span class="mono" style="font-weight:700;color:#34d399;font-size:9px">${R$(e.valor||0)}</span>
+        </div>
+        <button onclick="delExtra(${i})" style="margin-top:4px;width:100%;background:none;border:1px solid rgba(248,113,113,.18);color:#f87171;border-radius:4px;padding:1px;font-size:8px">Remover</button>
+      </div>`).join('')}
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+      <button onclick="openSyncModal()" style="padding:5px 10px;background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);color:#38bdf8;border-radius:6px;font-weight:700;font-size:9px">🔗 Sync/Backup</button>
+      <button onclick="fecharMes()" style="padding:5px 11px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:6px;font-weight:700;font-size:9px">📦 Fechar Mês</button>
+    </div>
+  `;
+}
+
+// ─── CLIENTES ─────────────────────────────────────────────────────────────────
+function renderClientes() {
+  const q = (document.getElementById('search-input')?.value||'').toLowerCase();
+  const now = new Date(), Y=now.getFullYear(), M=now.getMonth(), Dd=now.getDate();
+  const filtC = D.clients.filter(c=>{
+    return !q || (c.nome||'').toLowerCase().includes(q) || (c.productName||'').toLowerCase().includes(q);
+  });
+  const fut = D.clients.filter(c=>c.status!=='cancelado'&&c.status!=='concluido'&&c.type!=='antigo')
+    .reduce((s,c)=>{ const p=pr(c.productId); return s+Math.max(0,(p?p.p:0)-tp(c)); }, 0);
+
+  const el = document.getElementById('clientes-list');
+  el.innerHTML = `
+    <div style="padding:8px 0 12px;display:flex;justify-content:space-between;align-items:center">
+      <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;color:#a78bfa;font-weight:700">💎 Caixa Futuro</div>
+      <div class="mono" style="font-weight:900;font-size:16px;color:#a78bfa">${R$(fut)}</div>
+    </div>
+    ${filtC.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:28px;font-size:12px">Nenhum cliente encontrado.</div>':''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(265px,1fr));gap:9px">
+    ${filtC.map(c=>{
+      const i = D.clients.indexOf(c);
+      const p_ = pr(c.productId);
+      const tpago = tp(c), falta=Math.max(0,(p_?p_.p:0)-tpago);
+      const msat = mDe(c.dataInicio,Y,M);
+      const s_ = si(c.status||'ativo');
+      const prog = c.mesesContrato>0?Math.min(100,Math.round(msat/c.mesesContrato*100)):0;
+      const isBH = c.payMethod==='boleto'&&parseInt(c.diaCobranca)===Dd&&c.status!=='cancelado'&&c.status!=='concluido';
+      const pC = c.payMethod==='pix'?'#34d399':c.payMethod==='cartao'?'#38bdf8':'#fb923c';
+      const pL = c.payMethod==='pix'?'PIX':c.payMethod==='cartao'?'Cartão':'Boleto';
+      return `<div style="background:rgba(255,255,255,.034);border:1px solid ${isBH?'rgba(251,146,60,.4)':'rgba(56,189,248,.11)'};border-left:3px solid ${s_.c};border-radius:11px;padding:12px 13px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+          <div>
+            <div style="font-weight:800;font-size:14px">${esc(c.nome)}</div>
+            ${c.insta?`<div style="font-size:10px;color:#a78bfa;margin-top:1px">📸 ${esc(c.insta)}</div>`:''}
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+            <span style="font-size:8px;padding:1px 5px;border-radius:20px;font-weight:700;background:${c.type==='novo'?'rgba(56,189,248,.15)':'rgba(251,146,60,.15)'};color:${c.type==='novo'?'#38bdf8':'#fb923c'}">${c.type==='novo'?'Novo':'Antigo'}</span>
+            <span style="font-size:8px;padding:1px 5px;border-radius:20px;font-weight:700;background:${s_.b};color:${s_.c}">● ${s_.l}</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:2px;margin-bottom:6px;flex-wrap:wrap">
+          ${ST.map(st=>`<button onclick="setStatus(${i},'${st.id}')" style="padding:1px 6px;border:1px solid ${(c.status||'ativo')===st.id?st.c:'rgba(255,255,255,.07)'};border-radius:20px;background:${(c.status||'ativo')===st.id?st.b:'transparent'};color:${(c.status||'ativo')===st.id?st.c:'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">${st.l}</button>`).join('')}
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px">
+          ${[['Produto',c.productName||'—',p_?p_.c:'#38bdf8'],['Meses',`${msat}/${c.mesesContrato||'?'}`,'#edf4ff'],['Já pagou',R$(tpago),'#34d399'],['Falta',falta===0?'✅ Quit.':R$(falta),falta===0?'#34d399':'#fb923c']].map(([l,v,vc])=>`
+            <div style="background:rgba(255,255,255,.025);border-radius:6px;padding:5px 8px">
+              <div class="lbl" style="margin-bottom:1px">${l}</div>
+              <div style="font-weight:700;font-size:10px;color:${vc}">${v}</div>
+            </div>`).join('')}
+        </div>
+        ${c.mesesContrato>0?`<div style="margin-bottom:6px"><div style="display:flex;justify-content:space-between;margin-bottom:1px"><span class="lbl" style="margin-bottom:0">Contrato</span><span style="font-size:8px;color:#38bdf8;font-weight:700">${prog}%</span></div><div style="height:2px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden"><div style="height:100%;width:${prog}%;background:${prog>=100?'#34d399':'#38bdf8'};border-radius:99px"></div></div></div>`:''}
+        <div style="display:flex;gap:2px;flex-wrap:wrap;margin-bottom:6px">
+          <span style="font-size:8px;background:rgba(255,255,255,.04);padding:1px 5px;border-radius:20px;color:${pC}">💳 ${pL}</span>
+          ${c.payMethod==='boleto'&&c.diaCobranca?`<span style="font-size:8px;padding:1px 5px;border-radius:20px;color:#fb923c;font-weight:${isBH?700:400};background:rgba(251,146,60,${isBH?.2:.08})">📅 Dia ${c.diaCobranca}${isBH?' HOJE':''}</span>`:''}
+          <span style="font-size:8px;background:rgba(255,255,255,.04);padding:1px 5px;border-radius:20px;color:rgba(255,255,255,.38)">📆 ${c.dataInicio||'—'}</span>
+        </div>
+        ${isBH?`<button onclick="openModal('boletoPago',{idx:${i}})" style="width:100%;padding:7px;background:#c2410c;border:none;border-radius:6px;color:#fff;font-weight:700;font-size:10px;margin-bottom:6px">📅 Foi Pago — Registrar</button>`:''}
+        ${c.pagamentos?.length?`<div style="margin-bottom:6px"><div class="lbl">Pagamentos</div>${c.pagamentos.map(p=>`<div style="display:flex;justify-content:space-between;font-size:9px;padding:1px 0;border-bottom:1px solid rgba(56,189,248,.11)"><span style="color:rgba(255,255,255,.38)">${p.data}</span><span class="mono" style="font-weight:700;color:#34d399">${R$(p.valor)}</span></div>`).join('')}</div>`:''}
+        ${c.obs?`<div style="font-size:9px;color:rgba(255,255,255,.38);background:rgba(255,255,255,.025);border-radius:5px;padding:3px 7px;margin-bottom:6px">📝 ${esc(c.obs)}</div>`:''}
+        <div style="display:flex;gap:4px">
+          <button onclick="openModal('pagDireto',{idx:${i}})" style="flex:1;padding:5px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.18);color:#34d399;border-radius:6px;font-weight:700;font-size:9px">💰 + Pgto</button>
+          <button onclick="openModal('editClient',{idx:${i}})" style="flex:1;padding:5px;background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.18);color:#38bdf8;border-radius:6px;font-weight:700;font-size:9px">✏️ Editar</button>
+          <button onclick="confirmDel(${i},'${esc(c.nome).replace(/'/g,"\\'")}',false)" style="flex:1;padding:5px;background:rgba(248,113,113,.05);border:1px solid rgba(248,113,113,.15);color:#f87171;border-radius:6px;font-weight:600;font-size:9px">✕</button>
+        </div>
+      </div>`;
+    }).join('')}
+    </div>`;
+}
+
+// ─── CADASTRO ────────────────────────────────────────────────────────────────
+function renderCadastro() {
+  document.getElementById('view-cadastro').innerHTML = `
+    <div style="font-weight:800;font-size:14px;margin-bottom:10px">📋 Cadastro</div>
+    <div style="background:rgba(255,255,255,.034);border:1px solid rgba(255,255,255,.07);border-radius:13px;padding:14px;margin-bottom:14px">
+      <button onclick="openModal('antigo')" style="width:100%;padding:12px;background:rgba(255,255,255,.07);border:none;border-radius:9px;color:#edf4ff;font-weight:700;font-size:13px">+ Adicionar Cliente Antigo</button>
+    </div>
+    ${D.clients.filter(c=>c.type==='antigo').length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);font-size:11px;padding:12px 0">Nenhum cliente importado ainda.</div>':''}
+    <div style="display:flex;flex-direction:column;gap:6px">
+    ${D.clients.filter(c=>c.type==='antigo').map(c=>{
+      const i=D.clients.indexOf(c), s_=si(c.status||'ativo');
+      return `<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-left:3px solid #fb923c;border-radius:9px;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;gap:7px">
+        <div style="flex:1"><div style="font-weight:700;font-size:12px">${esc(c.nome)}</div><div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:1px">${esc(c.productName||'')} • ${c.dataInicio||'—'}</div></div>
+        <div style="text-align:right"><span style="font-size:7px;padding:1px 5px;border-radius:20px;font-weight:700;background:${s_.b};color:${s_.c}">● ${s_.l}</span><div class="mono" style="font-size:10px;color:#34d399;font-weight:700;margin-top:2px">${R$(tp(c))}</div></div>
+        <button onclick="confirmDel(${i},'${esc(c.nome).replace(/'/g,"\\'")}',false)" style="background:none;border:none;color:rgba(255,255,255,.38);font-size:12px">✕</button>
+      </div>`;
+    }).join('')}
+    </div>`;
+}
+
+// ─── HISTORICO ────────────────────────────────────────────────────────────────
+function renderHistorico() {
+  const entries = Object.entries(D.history||{}).sort((a,b)=>b[0].localeCompare(a[0]));
+  document.getElementById('view-historico').innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="lbl" style="margin-bottom:0">Meses Arquivados</div>
+      <button onclick="fecharMes()" style="padding:4px 10px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:6px;font-weight:700;font-size:9px">📦 Fechar Mês</button>
+    </div>
+    ${entries.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:28px;font-size:12px">Nenhum mês arquivado.</div>':''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:9px">
+    ${entries.map(([key,snap])=>{
+      const lb = new Date(key+'-01').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+      const st = snap.stats||{};
+      return `<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-top:2px solid #38bdf8;border-radius:11px;padding:12px 13px">
+        <div class="lbl" style="margin-bottom:1px">${lb}</div>
+        <div style="font-weight:700;font-size:10px;margin-bottom:7px">Fechado em ${snap.date}</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px">
+          <div style="background:rgba(255,255,255,.03);border-radius:6px;padding:6px 8px"><div class="lbl" style="margin-bottom:1px">Meta</div><div class="mono" style="font-weight:800;font-size:11px;color:#38bdf8">${R$(snap.meta)}</div></div>
+          <div style="background:rgba(52,211,153,.06);border-radius:6px;padding:6px 8px"><div class="lbl" style="color:#34d399;margin-bottom:1px">Caixa</div><div class="mono" style="font-weight:800;font-size:11px;color:#34d399">${R$(snap.caixa)}</div></div>
+        </div>
+        <div style="height:2px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${Math.min(100,snap.pct||0)}%;background:${(snap.pct||0)>=100?'#34d399':'#38bdf8'};border-radius:99px"></div></div>
+        <div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:6px">${snap.pct||0}% • ${(snap.clients||[]).length} clientes</div>
+        ${st.ticket!==undefined?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(255,255,255,.025);border-radius:7px;padding:7px 8px;margin-bottom:6px">${[['Ticket',R$(st.ticket),'#38bdf8'],['Clientes',String(st.total||0),'#edf4ff'],['Novos',String(st.novos||0),'#34d399'],['Cancelados',String(st.cancelados||0),'#f87171']].map(([l,v,c])=>`<div><div class="lbl" style="margin-bottom:1px">${l}</div><div style="font-weight:700;font-size:10px;color:${c}">${v}</div></div>`).join('')}</div>`:''}
+        <button onclick="exportSnap('${key}')" style="width:100%;padding:4px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.15);color:#34d399;border-radius:6px;font-weight:600;font-size:8px">📤 Exportar</button>
+      </div>`;
+    }).join('')}
+    </div>`;
+}
+
+// ─── ACTIONS ──────────────────────────────────────────────────────────────────
+function sinalEntrou(idx) {
+  const s = (D.sinais||[])[idx];
+  if(!s) return;
+  D.clients.push({nome:s.nome,insta:s.insta||'',segInicio:s.segInicio||0,productId:s.productId,productName:s.productName,fullPrice:s.fullPrice,payMethod:'pix',diaCobranca:null,pagamentos:[{valor:s.valorSinal,data:dh(),mes:ms()+' (sinal)'}],dataInicio:dh(),mesesContrato:0,status:'ativo',type:'novo',temSinal:true});
+  D.sinais.splice(idx,1);
+  D.ativos++;
+  save(); toast('✅ Entrou!');
+}
+
+function sinalCorreu(idx) {
+  const s = (D.sinais||[])[idx];
+  if(!s) return;
+  D.extras.push({valor:s.valorSinal,descricao:`Sinal — ${s.nome} (correu)`,data:dh()});
+  D.sinais.splice(idx,1);
+  save(); toast('❌ Correu.','#b91c1c');
+}
+
+function setStatus(i, st) {
+  D.clients[i].status = st;
+  save();
+}
+
+function delExtra(i) {
+  D.extras.splice(i,1);
+  save(); toast('✅ Removido.');
+}
+
+function confirmDel(i, nome, isExtra) {
+  document.getElementById('confirm-name').textContent = nome;
+  document.getElementById('confirm-ok').onclick = () => {
+    if(isExtra){ D.extras.splice(i,1); }
+    else { D.clients.splice(i,1); D.ativos=Math.max(0,D.ativos-1); }
+    closeConfirm(); save(); toast('✅ Removido.');
+  };
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function closeConfirm(){ document.getElementById('confirm-overlay').classList.remove('open'); }
+
+function fecharMes() {
+  const atM = D.clients.filter(c=>c.type!=='antigo'&&c.status!=='cancelado');
+  const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tp(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
+  const pct = D.meta>0?Math.min(100,Math.round(caixa/D.meta*100)):0;
+  const key = mk();
+  D.history[key] = {
+    clients:[...D.clients],extras:[...D.extras],meta:D.meta,caixa,pct,date:dh(),
+    stats:{ticket:atM.length>0?Math.round(caixa/atM.length):0,total:atM.length,novos:D.clients.filter(c=>c.type==='novo').length,cancelados:D.clients.filter(c=>c.status==='cancelado').length}
+  };
+  D.clients=[]; D.extras=[]; D.sinais=[]; D.meta=0;
+  save(); toast('📦 Mês fechado!');
+}
+
+function exportSnap(key) {
+  const snap = D.history[key];
+  if(!snap) return;
+  const lb = new Date(key+'-01').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+  const txt = [`=== CD GRUPO — ${lb.toUpperCase()} ===`,`Fechado: ${snap.date}`,'',`Caixa: ${R$(snap.caixa)}`,`Meta: ${R$(snap.meta)}`,`Atingiu: ${snap.pct}%`,...(snap.stats?['',`Ticket: ${R$(snap.stats.ticket)}`,`Clientes: ${snap.stats.total}`]:[])].join('\n');
+  navigator.clipboard.writeText(txt).then(()=>toast('📋 Copiado!')).catch(()=>alert(txt));
+}
+
+// ─── MODAL SYSTEM ─────────────────────────────────────────────────────────────
+let modalCtx = {};
+
+function openModal(type, ctx) {
+  modalCtx = ctx||{};
+  const box = document.getElementById('modal-box');
+  box.innerHTML = buildModal(type);
+  document.getElementById('modal-overlay').classList.add('open');
+  const first = box.querySelector('input');
+  if(first) setTimeout(()=>first.focus(),100);
+}
+
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('open'); }
+
+function buildModal(type) {
+  if(type==='choice') return `
+    <div style="font-weight:900;font-size:19px;margin-bottom:12px">Registrar</div>
+    ${[['novo','⭐','Novo Cliente','Fechou agora','#1d4ed8'],['sinal','💸','Sinal','Decide depois','#0f766e'],['antigo','📋','Cli. Antigo','Migrar existente','#334155'],['anterior','📂','Pgto Anterior','Registrar parcela','#1e3a5f'],['outros','💼','Outros','Valor avulso','#3b0764']].map(([k,i,l,s,bg])=>`
+      <button onclick="openModal('${k}')" style="width:100%;padding:10px 13px;background:${bg};color:#fff;border:none;border-radius:10px;display:flex;align-items:center;gap:10px;margin-bottom:5px;text-align:left">
+        <span style="font-size:18px;flex-shrink:0">${i}</span>
+        <div><div style="font-weight:700;font-size:13px">${l}</div><div style="font-size:10px;opacity:.65;margin-top:1px">${s}</div></div>
+      </button>`).join('')}`;
+
+  if(type==='novo') return buildFormNovo();
+  if(type==='sinal') return buildFormSinal();
+  if(type==='antigo') return buildFormEdit({},true);
+  if(type==='anterior') return buildFormAnterior();
+  if(type==='outros') return buildFormOutros();
+  if(type==='editMeta') return buildFormNum('🎯 Meta do Mês','','meta',D.meta,'#38bdf8');
+  if(type==='editAtivos') return buildFormNum('👥 Ecossistema','','ativos',D.ativos,'#a78bfa');
+  if(type==='editClient') { const c=D.clients[modalCtx.idx]; return buildFormEdit(c,false); }
+  if(type==='pagDireto') return buildFormVal('💰 Pagamento', D.clients[modalCtx.idx]?.nome||'', 'Valor recebido (R$)', 'Entra no caixa.','#16a34a','pagDireto');
+  if(type==='boletoPago') { const c=D.clients[modalCtx.idx]; return buildFormVal('📅 Boleto Pago',`${c?.nome||''} — dia ${c?.diaCobranca||''}`,'Quanto pagou? (R$)','Entra no caixa.','#c2410c','boletoPago'); }
+  return '';
+}
+
+function buildPP(sel) {
+  return `<div class="lbl">Produto</div>`+PR.map(p=>`<div onclick="this.parentNode.querySelectorAll('[data-pp]').forEach(e=>e.style.border='1.5px solid rgba(255,255,255,.1)');this.style.border='1.5px solid ${p.c}';this.style.background='${p.b}';document.getElementById('f-prod').value='${p.id}'" data-pp="${p.id}" style="padding:9px 12px;border:1.5px solid ${sel===p.id?p.c:'rgba(255,255,255,.1)'};background:${sel===p.id?p.b:'transparent'};border-radius:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;touch-action:manipulation"><span style="font-weight:600;font-size:12px">${p.n}</span><span class="mono" style="font-weight:700;color:${p.c};font-size:11px">${R$(p.p)}</span></div>`).join('') + `<input type="hidden" id="f-prod" value="${sel||''}">`;
+}
+
+function buildPyP(sel,dia) {
+  return `<div class="lbl">Pagamento</div><div style="display:flex;gap:5px;margin-bottom:9px">${[['pix','PIX','#34d399'],['cartao','Cartão','#38bdf8'],['boleto','Boleto','#fb923c']].map(([v,l,c])=>`<div onclick="this.parentNode.querySelectorAll('[data-py]').forEach(e=>{e.style.border='2px solid rgba(255,255,255,.07)';e.style.background='transparent';e.style.color='rgba(255,255,255,.38)'});this.style.border='2px solid ${c}';this.style.background='${c}22';this.style.color='${c}';document.getElementById('f-pay').value='${v}';document.getElementById('dia-wrap').style.display='${v==='boleto'?'block':'none'}';" data-py="${v}" style="flex:1;padding:8px 3px;border:2px solid ${sel===v?c:'rgba(255,255,255,.07)'};border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:11px;color:${sel===v?c:'rgba(255,255,255,.38)'};background:${sel===v?c+'22':'transparent'};touch-action:manipulation">${l}</div>`).join('')}</div><input type="hidden" id="f-pay" value="${sel||'pix'}"><div id="dia-wrap" style="display:${sel==='boleto'?'block':'none'}"><div class="lbl">Dia Cobrança</div><input type="number" inputmode="numeric" id="f-dia" value="${dia||''}" placeholder="Ex: 10"></div>`;
+}
+
+function buildStP(sel) {
+  return `<div class="lbl">Status</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:9px">${ST.map(s=>`<div onclick="this.parentNode.querySelectorAll('[data-st]').forEach(e=>{e.style.border='2px solid rgba(255,255,255,.07)';e.style.color='rgba(255,255,255,.38)';e.style.background='transparent'});this.style.border='2px solid ${s.c}';this.style.color='${s.c}';this.style.background='${s.b}';document.getElementById('f-status').value='${s.id}'" data-st="${s.id}" style="padding:7px;border:2px solid ${sel===s.id?s.c:'rgba(255,255,255,.07)'};border-radius:7px;cursor:pointer;text-align:center;font-weight:700;font-size:11px;color:${sel===s.id?s.c:'rgba(255,255,255,.38)'};background:${sel===s.id?s.b:'transparent'};touch-action:manipulation">${s.l}</div>`).join('')}</div><input type="hidden" id="f-status" value="${sel||'ativo'}">`;
+}
+
+function buildFormNovo() {
+  return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">⭐ Novo Cliente</div>
+    <div class="lbl">Nome</div><input type="text" id="f-nome" placeholder="Ex: Maria Silva" autocomplete="off">
+    <div class="lbl">Instagram</div><input type="text" id="f-insta" placeholder="@usuario" autocomplete="off">
+    <div class="lbl">Seguidores</div><input type="number" inputmode="numeric" id="f-seg" placeholder="Ex: 1200">
+    <div class="lbl">Meses contrato</div><input type="number" inputmode="numeric" id="f-meses" placeholder="Ex: 6">
+    ${buildPP('')}
+    ${buildPyP('pix','')}
+    <div class="gf"><div class="lbl">💰 Quanto pagou esse mês?</div><input type="number" inputmode="decimal" id="f-pago" placeholder="0"><div style="font-size:10px;color:#34d399;margin-top:4px;opacity:.8">Só esse valor entra na meta.</div></div>
+    <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveNovo()">✅ Salvar</button></div>`;
+}
+
+function buildFormSinal() {
+  return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">💸 Sinal</div>
+    <div class="lbl">Nome</div><input type="text" id="f-nome" placeholder="Ex: Pedro" autocomplete="off">
+    <div class="lbl">Instagram</div><input type="text" id="f-insta" placeholder="@usuario" autocomplete="off">
+    <div class="lbl">Seguidores</div><input type="number" inputmode="numeric" id="f-seg" placeholder="Ex: 1200">
+    ${buildPP('')}
+    <div class="gf"><div class="lbl">💸 Valor do Sinal</div><input type="number" inputmode="decimal" id="f-sinal" placeholder="0"><div style="font-size:10px;color:#34d399;margin-top:4px;opacity:.8">Entra no caixa quando confirmar.</div></div>
+    <div class="of"><div class="lbl">📅 Data Decisão (dd/mm/aaaa)</div><input type="text" id="f-decisao" placeholder="Ex: 25/04/2025"></div>
+    <div style="font-size:10px;color:#fb923c;margin-bottom:9px">2 dias antes aparece alerta no painel.</div>
+    <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" style="background:#0f766e" onclick="saveSinal()">💾 Salvar Sinal</button></div>`;
+}
+
+function buildFormEdit(c, isNew) {
+  return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">${isNew?'📋 Cliente Antigo':'✏️ Editar'}</div>
+    <div class="lbl">Nome</div><input type="text" id="f-nome" value="${esc(c.nome||'')}" placeholder="Nome completo" autocomplete="off">
+    <div class="lbl">Instagram</div><input type="text" id="f-insta" value="${esc(c.insta||'')}" placeholder="@usuario" autocomplete="off">
+    <div class="lbl">Seguidores</div><input type="number" inputmode="numeric" id="f-seg" value="${c.segInicio||''}">
+    <div class="lbl">Data Início (dd/mm/aaaa)</div><input type="text" id="f-dtIn" value="${esc(c.dataInicio||'')}" placeholder="Ex: 01/01/2024">
+    <div class="lbl">Meses contrato</div><input type="number" inputmode="numeric" id="f-meses" value="${c.mesesContrato||''}">
+    <div class="lbl">Observações</div><input type="text" id="f-obs" value="${esc(c.obs||'')}" placeholder="Notas..." autocomplete="off">
+    ${buildPP(c.productId||'')}
+    ${buildPyP(c.payMethod||'pix',c.diaCobranca||'')}
+    ${!isNew?buildStP(c.status||'ativo'):''}
+    <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveEdit(${isNew})">✅ Salvar</button></div>`;
+}
+
+function buildFormAnterior() {
+  let prodHtml = `<div class="lbl">1. Produto</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:9px">`;
+  PR.forEach(p=>{ prodHtml+=`<div onclick="filterAntClients('${p.id}')" data-ap="${p.id}" style="padding:8px 12px;border:1.5px solid rgba(255,255,255,.1);border-radius:7px;cursor:pointer;font-weight:600;font-size:12px;color:rgba(255,255,255,.38)">${p.n}</div>`; });
+  prodHtml+='</div>';
+  return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">📂 Pgto Anterior</div>
+    ${prodHtml}
+    <div class="lbl">2. Cliente</div>
+    <div id="ant-clients" style="max-height:130px;overflow-y:auto;display:flex;flex-direction:column;gap:4px;margin-bottom:9px">
+      <div style="color:rgba(255,255,255,.38);font-size:11px">Selecione produto acima.</div>
+    </div>
+    <input type="hidden" id="f-ant-idx" value="">
+    <div class="gf"><div class="lbl">💰 Valor pago (R$)</div><input type="number" inputmode="decimal" id="f-ant-val" placeholder="0"><div style="font-size:10px;color:#34d399;margin-top:4px;opacity:.8">Entra na meta.</div></div>
+    <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveAnterior()">✅ Registrar</button></div>`;
+}
+
+function filterAntClients(prodId) {
+  document.querySelectorAll('[data-ap]').forEach(e=>{
+    const isMe = e.dataset.ap===prodId;
+    const p=PR.find(x=>x.id===e.dataset.ap);
+    e.style.border=`1.5px solid ${isMe?p.c:'rgba(255,255,255,.1)'}`;
+    e.style.color=isMe?p.c:'rgba(255,255,255,.38)';
+    e.style.background=isMe?p.b:'transparent';
+  });
+  const filtered = D.clients.filter(c=>c.productId===prodId);
+  const el = document.getElementById('ant-clients');
+  if(filtered.length===0){ el.innerHTML='<div style="color:rgba(255,255,255,.38);font-size:11px">Nenhum cliente.</div>'; return; }
+  el.innerHTML = filtered.map(c=>{
+    const i=D.clients.indexOf(c);
+    return `<div onclick="selectAntClient(this,${i},'${esc(c.nome).replace(/'/g,"\\'")}') " data-ci="${i}" style="padding:8px 12px;border:1.5px solid rgba(255,255,255,.07);background:transparent;border-radius:8px;cursor:pointer;font-size:13px;touch-action:manipulation">${esc(c.nome)}</div>`;
+  }).join('');
+}
+
+function selectAntClient(el,i,nome){
+  document.querySelectorAll('[data-ci]').forEach(e=>{e.style.border='1.5px solid rgba(255,255,255,.07)';e.style.background='transparent';e.style.fontWeight='400';});
+  el.style.border='1.5px solid #38bdf8';el.style.background='rgba(56,189,248,.18)';el.style.fontWeight='700';
+  document.getElementById('f-ant-idx').value=i;
+}
+
+function buildFormOutros() {
+  return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">💼 Outros</div>
+    <div class="lbl">Descrição</div><input type="text" id="f-desc" placeholder="Ex: Consultoria..." autocomplete="off">
+    <div class="gf"><div class="lbl">💼 Valor (R$)</div><input type="number" inputmode="decimal" id="f-val" placeholder="0"><div style="font-size:10px;color:#34d399;margin-top:4px;opacity:.8">Entra na meta.</div></div>
+    <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" style="background:#5b21b6" onclick="saveOutros()">Adicionar</button></div>`;
+}
+
+function buildFormVal(title, sub, lb, ht, col, act) {
+  return `<div style="font-weight:900;font-size:19px;margin-bottom:4px">${title}</div>
+    ${sub?`<div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:12px">${esc(sub)}</div>`:''}
+    <div class="gf"><div class="lbl">${lb}</div><input type="number" inputmode="decimal" id="f-val" placeholder="0"><div style="font-size:10px;color:#34d399;margin-top:4px;opacity:.8">${ht}</div></div>
+    <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" style="background:${col}" onclick="saveVal('${act}')">✅ Confirmar</button></div>`;
+}
+
+function buildFormNum(title, hint, field, cur, col) {
+  return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">${title}</div>
+    <input type="number" inputmode="decimal" id="f-num" value="${cur||''}" placeholder="0" style="font-size:26px;font-weight:800;color:${col};text-align:center;background:${col}22;border-color:${col}55;margin-bottom:6px">
+    ${hint?`<div style="font-size:10px;color:rgba(255,255,255,.38);text-align:center;margin-bottom:6px">${hint}</div>`:''}
+    <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" style="background:${col==='#a78bfa'?'#5b21b6':'#1d4ed8'}" onclick="saveNum('${field}')">✅ Confirmar</button></div>`;
+}
+
+// ─── SAVE ACTIONS ────────────────────────────────────────────────────────────
+function g(id){ return document.getElementById(id)?.value||''; }
+function gn(id){ return parseFloat(g(id))||0; }
+function gi(id){ return parseInt(g(id))||0; }
+
+function saveNovo() {
+  const nome=g('f-nome').trim(), prod=g('f-prod'), pay=g('f-pay'), pago=gn('f-pago');
+  if(!nome||!prod||!pay||!pago){ toast('Preencha nome, produto, pagamento e valor','#b91c1c'); return; }
+  if(pay==='boleto'&&!g('f-dia')){ toast('Informe dia de cobrança','#b91c1c'); return; }
+  const p=pr(prod);
+  D.clients.push({nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p.n,fullPrice:p.p,payMethod:pay,diaCobranca:pay==='boleto'?g('f-dia'):null,pagamentos:[{valor:pago,data:dh(),mes:ms()}],dataInicio:dh(),mesesContrato:gi('f-meses'),status:'ativo',type:'novo'});
+  D.ativos++; closeModal(); save(); toast('✅ Registrado!');
+}
+
+function saveSinal() {
+  const nome=g('f-nome').trim(), prod=g('f-prod'), sinal=gn('f-sinal'), decisao=g('f-decisao').trim();
+  if(!nome||!prod||!sinal||!decisao){ toast('Preencha todos os campos','#b91c1c'); return; }
+  const p=pr(prod);
+  if(!D.sinais) D.sinais=[];
+  D.sinais.push({id:Date.now(),nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p.n,fullPrice:p.p,valorSinal:sinal,dataDecisao:decisao,cadastro:dh()});
+  closeModal(); save(); toast('💸 Sinal salvo!');
+}
+
+function saveEdit(isNew) {
+  const nome=g('f-nome').trim(), prod=g('f-prod');
+  if(!nome){ toast('Informe o nome','#b91c1c'); return; }
+  if(!prod){ toast('Selecione produto','#b91c1c'); return; }
+  const p=pr(prod);
+  const obj={nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p?.n||'',fullPrice:p?.p||0,payMethod:g('f-pay')||'pix',diaCobranca:g('f-pay')==='boleto'?g('f-dia'):null,dataInicio:g('f-dtIn')||dh(),mesesContrato:gi('f-meses'),obs:g('f-obs')};
+  if(isNew){
+    obj.pagamentos=[]; obj.status='ativo'; obj.type='antigo';
+    D.clients.push(obj); D.ativos++;
+  } else {
+    const i=modalCtx.idx;
+    obj.status=g('f-status')||D.clients[i].status||'ativo';
+    obj.pagamentos=D.clients[i].pagamentos||[];
+    obj.type=D.clients[i].type||'novo';
+    D.clients[i]={...D.clients[i],...obj};
+  }
+  closeModal(); save(); toast('✅ Salvo!');
+}
+
+function saveAnterior() {
+  const idx=parseInt(g('f-ant-idx')), val=gn('f-ant-val');
+  if(isNaN(idx)||idx<0||!val){ toast('Selecione cliente e informe valor','#b91c1c'); return; }
+  D.clients[idx].pagamentos = [...(D.clients[idx].pagamentos||[]),{valor:val,data:dh(),mes:ms()}];
+  closeModal(); save(); toast('✅ Registrado!');
+}
+
+function saveOutros() {
+  const val=gn('f-val');
+  if(!val){ toast('Informe valor','#b91c1c'); return; }
+  D.extras.push({valor:val,descricao:g('f-desc')||'Outros',data:dh()});
+  closeModal(); save(); toast('✅ Adicionado!');
+}
+
+function saveVal(act) {
+  const val=gn('f-val');
+  if(!val){ toast('Informe o valor','#b91c1c'); return; }
+  const idx=modalCtx.idx;
+  if(act==='pagDireto'||act==='boletoPago'){
+    D.clients[idx].pagamentos=[...(D.clients[idx].pagamentos||[]),{valor:val,data:dh(),mes:ms()}];
+  }
+  closeModal(); save(); toast('✅ Registrado!');
+}
+
+function saveNum(field) {
+  const val = parseFloat(g('f-num'))||0;
+  if(field==='ativos') D.ativos=Math.round(val);
+  else D.meta=val;
+  closeModal(); save(); toast('✅ Atualizado!');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+async function init() {
+  loadLocal();
+  loadSyncCfg();
+  checkMonthRollover();
+  renderAll();
+
+  if(syncCfg?.key && syncCfg?.bin) {
+    setSynced(false);
+    document.getElementById('sync-txt').textContent='🔄 Sync...';
+    await syncPull();
+    syncTimer = setInterval(syncPull, 30000);
+  } else {
+    setSynced(true);
+    document.getElementById('sync-txt').textContent='💾 Local';
+  }
+}
+
+init();
+</script>
+</body>
+</html>
