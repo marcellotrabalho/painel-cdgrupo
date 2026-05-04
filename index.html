@@ -95,6 +95,7 @@ button:active{transform:scale(.97)}
       <button class="tab-btn" onclick="setTab('clientes')" id="tab-clientes">👥 Clientes</button>
       <button class="tab-btn" onclick="setTab('cadastro')" id="tab-cadastro">📋 Cadastro</button>
       <button class="tab-btn" onclick="setTab('historico')" id="tab-historico">📅 Histórico</button>
+      <button class="tab-btn" onclick="setTab('semanas')" id="tab-semanas">📊 Semanas</button>
     </div>
     <div class="topright">
       <div style="display:flex;align-items:center;gap:3px">
@@ -136,6 +137,9 @@ button:active{transform:scale(.97)}
 
     <!-- CADASTRO TAB -->
     <div id="view-cadastro" style="display:none;flex:1;overflow-y:auto;padding:12px 14px"></div>
+
+    <!-- SEMANAS TAB -->
+    <div id="view-semanas" style="display:none;flex:1;overflow-y:auto;padding:12px 14px"></div>
 
     <!-- HISTORICO TAB -->
     <div id="view-historico" style="display:none;flex:1;overflow-y:auto;padding:12px 14px"></div>
@@ -192,7 +196,7 @@ const MK_KEY = 'cdg_mk';
 
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
-let D = {clients:[],extras:[],sinais:[],meta:0,ativos:0,history:{}};
+let D = {clients:[],extras:[],sinais:[],meta:0,ativos:0,history:{},semanas:{}};
 let filtroStatus = 'todos';
 let filtroProd = 'todos';
 let curTab = 'painel';
@@ -204,16 +208,45 @@ const dh = () => new Date().toLocaleDateString('pt-BR');
 const ms = () => new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
 const mk = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
 const R$ = n => 'R$ ' + (n||0).toLocaleString('pt-BR');
-const isU = (y,m,d) => new Date(y,m,d).getDay() !== 0;
+// Feriados nacionais fixos (MM-DD) e móveis calculados
+function getFeriados(y) {
+  // Cálculo da Páscoa (algoritmo de Meeus/Jones/Butcher)
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4;
+  const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30;
+  const i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7;
+  const m_=Math.floor((a+11*h+22*l)/451);
+  const mes=Math.floor((h+l-7*m_+114)/31)-1;
+  const dia=(h+l-7*m_+114)%31+1;
+  const pascoa = new Date(y,mes,dia);
+  const addD = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+  const key = d => `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const moveis = new Set([
+    key(addD(pascoa,-48)), // Segunda Carnaval
+    key(addD(pascoa,-47)), // Terça Carnaval
+    key(addD(pascoa,-2)),  // Sexta-Feira Santa
+    key(pascoa),            // Páscoa
+    key(addD(pascoa,60)),  // Corpus Christi
+  ]);
+  const fixos = new Set(['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25']);
+  return {moveis, fixos};
+}
+const isFeriado = (y,m,d) => {
+  const {moveis,fixos} = getFeriados(y);
+  const key = `${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  return fixos.has(key) || moveis.has(key);
+};
+// Dia útil = segunda a sexta, sem feriado
+const isU = (y,m,d) => { const dow=new Date(y,m,d).getDay(); return dow>=1&&dow<=5&&!isFeriado(y,m,d); };
 const wdT = (y,m) => { let c=0,n=new Date(y,m+1,0).getDate(); for(let i=1;i<=n;i++) if(isU(y,m,i))c++; return c; };
 const wdA = (y,m,d) => { let c=0; for(let i=1;i<=d;i++) if(isU(y,m,i))c++; return c; };
 const wdR = (y,m,d) => { let c=0,n=new Date(y,m+1,0).getDate(); for(let i=d+1;i<=n;i++) if(isU(y,m,i))c++; return c; };
 const dAt = s => { if(!s)return null; const[d,m,y]=s.split('/').map(Number); if(!y)return null; const t=new Date(y,m-1,d),n=new Date(); n.setHours(0,0,0,0); t.setHours(0,0,0,0); return Math.round((t-n)/86400000); };
 const mDe = (ds,Y,M) => { if(!ds)return 0; const p=ds.split('/').map(Number); if(!p[2])return 0; return Math.max(0,(Y-p[2])*12+(M-(p[1]-1))); };
 const tp = c => (c.pagamentos||[]).reduce((s,p)=>s+(p.valor||0),0);
+const tpMes = c => (c.pagamentos||[]).filter(p=>!p.mesAnterior&&!p.historico).reduce((s,p)=>s+(p.valor||0),0);
 const si = id => ST.find(s=>s.id===id)||ST[0];
 const pr = id => PR.find(p=>p.id===id);
-const norm = d => ({clients:d.clients||[],extras:d.extras||[],sinais:d.sinais||[],meta:d.meta||0,ativos:d.ativos||0,history:d.history||{}});
+const norm = d => ({clients:d.clients||[],extras:d.extras||[],sinais:d.sinais||[],meta:d.meta||0,ativos:d.ativos||0,history:d.history||{},semanas:d.semanas||{}});
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function toast(msg, col) {
@@ -319,12 +352,13 @@ function checkMonthRollover() {
 // ─── TABS ─────────────────────────────────────────────────────────────────────
 function setTab(t) {
   curTab = t;
-  ['painel','clientes','cadastro','historico'].forEach(id => {
+  ['painel','clientes','cadastro','historico','semanas'].forEach(id => {
     const el = document.getElementById('view-'+id);
-    if(id==='painel') el.style.display = id===t ? 'flex' : 'none';
-    else if(id==='clientes') el.style.display = id===t ? 'flex' : 'none';
+    if(!el) return;
+    if(id==='painel'||id==='clientes') el.style.display = id===t ? 'flex' : 'none';
     else el.style.display = id===t ? 'block' : 'none';
-    document.getElementById('tab-'+id).classList.toggle('active', id===t);
+    const btn = document.getElementById('tab-'+id);
+    if(btn) btn.classList.toggle('active', id===t);
   });
   renderAll();
   // Apply active styles to default filters
@@ -346,6 +380,8 @@ function renderAll() {
   if(curTab==='clientes') renderClientes();
   if(curTab==='cadastro') renderCadastro();
   if(curTab==='historico') renderHistorico();
+  if(curTab==='semanas') renderSemanas();
+  checkDashboardSemanal();
 }
 
 // ─── ALERTS ──────────────────────────────────────────────────────────────────
@@ -380,7 +416,7 @@ function renderAlerts() {
 function renderPainel() {
   const now = new Date(), Y=now.getFullYear(), M=now.getMonth(), Dd=now.getDate();
   const {clients,extras,sinais,meta,ativos} = D;
-  const caixa = clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tp(c),0) + extras.reduce((s,e)=>s+(e.valor||0),0);
+  const caixa = clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tpMes(c),0) + extras.reduce((s,e)=>s+(e.valor||0),0);
   const pct = meta>0 ? Math.min(100,Math.round(caixa/meta*100)) : 0;
   const TWD=wdT(Y,M), wdP_=wdA(Y,M,Dd), wdL_=wdR(Y,M,Dd);
   const mD = TWD>0 ? meta/TWD : 0;
@@ -457,6 +493,25 @@ function renderPainel() {
       </div>
     </div>
 
+    ${(()=>{
+      const conv = D.clients.filter(c=>c.temSinal).length;
+      const correram = D.extras.filter(e=>e.isSinal).length;
+      const total = conv + correram;
+      if(!total) return '';
+      const pctConv = Math.round(conv/total*100);
+      return `<div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:0;background:transparent;border:none">
+        <div style="background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.2);border-radius:12px;padding:12px">
+          <div class="lbl" style="margin-bottom:4px">💸 Conversão Sinais</div>
+          <div class="mono" style="font-weight:900;font-size:24px;color:#34d399">${pctConv}%</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">${conv} de ${total} viraram clientes</div>
+        </div>
+        <div style="background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);border-radius:12px;padding:12px">
+          <div class="lbl" style="margin-bottom:4px">❌ Correram</div>
+          <div class="mono" style="font-weight:900;font-size:24px;color:#f87171">${correram}</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">${total-conv} de ${total} não converteram</div>
+        </div>
+      </div>`;
+    })()}
     <div class="card" style="background:rgba(52,211,153,.05);border-color:rgba(52,211,153,.2)">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
         <div class="lbl" style="margin-bottom:0">Caixa Atual</div>
@@ -481,6 +536,19 @@ function renderPainel() {
         <span style="font-size:20px">🏆</span>
         <div><div class="lbl" style="margin-bottom:1px">Melhor Dia do Mês</div>
         <div style="font-weight:800;font-size:13px;color:#fbbf24">${best[0]} — ${R$(best[1])}</div></div>
+      </div>`;
+    })()}
+    ${(()=>{
+      const ranking = [...clients].filter(c=>c.type!=='antigo')
+        .map(c=>({nome:c.nome,prod:c.productName||'',val:tpMes(c)}))
+        .filter(x=>x.val>0).sort((a,b)=>b.val-a.val).slice(0,3);
+      if(!ranking.length) return '';
+      const medals = ['🥇','🥈','🥉'];
+      return `<div class="card"><div class="lbl" style="margin-bottom:9px">🏆 Top 3 Clientes do Mês</div>
+        ${ranking.map((x,i)=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(56,189,248,.08)">
+          <div style="display:flex;align-items:center;gap:7px"><span style="font-size:16px">${medals[i]}</span><div><div style="font-weight:700;font-size:12px">${esc(x.nome)}</div><div style="font-size:9px;color:rgba(255,255,255,.38)">${esc(x.prod)}</div></div></div>
+          <div class="mono" style="font-weight:800;font-size:12px;color:#34d399">${R$(x.val)}</div>
+        </div>`).join('')}
       </div>`;
     })()}
     ${(()=>{
@@ -533,6 +601,29 @@ function renderPainel() {
       </div>
     </div>
 
+    ${(()=>{
+      const entries = Object.entries(D.history||{}).sort((a,b)=>a[0].localeCompare(b[0])).slice(-6);
+      if(!entries.length) return '';
+      const maxC = Math.max(...entries.map(([,s])=>s.caixa||0), D.meta||1);
+      return `<div class="card"><div class="lbl" style="margin-bottom:9px">📈 Histórico de Metas</div>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:60px;margin-bottom:8px">
+          ${entries.map(([key,snap])=>{
+            const lb = new Date(key+'-01').toLocaleDateString('pt-BR',{month:'short'});
+            const h = maxC>0?Math.round((snap.caixa/maxC)*100):0;
+            const bateu = snap.caixa>=(snap.meta||0);
+            return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+              <div style="font-size:7px;color:${bateu?'#34d399':'#f87171'};font-weight:700">${snap.pct||0}%</div>
+              <div style="width:100%;height:${h}%;min-height:4px;background:${bateu?'#34d399':'#f87171'};border-radius:4px 4px 0 0;transition:height .5s"></div>
+              <div style="font-size:7px;color:rgba(255,255,255,.38)">${lb}</div>
+            </div>`;
+          }).join('')}
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,.38)">
+          <span>● <span style="color:#34d399">Bateu</span></span>
+          <span>● <span style="color:#f87171">Não bateu</span></span>
+        </div>
+      </div>`;
+    })()}
     <div style="font-size:8px;color:rgba(255,255,255,.38);font-weight:700;text-transform:uppercase;letter-spacing:2px;padding-bottom:5px;border-bottom:1px solid rgba(56,189,248,.11)">Histórico do Mês</div>
     ${historicoItems.length===0&&extrasItems.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:22px;font-size:12px;line-height:1.9">Nenhum registro<br><span style="opacity:.6">Use + Reg.</span></div>':''}
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:6px">
@@ -733,7 +824,10 @@ function renderHistorico() {
         <div style="height:2px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${Math.min(100,snap.pct||0)}%;background:${(snap.pct||0)>=100?'#34d399':'#38bdf8'};border-radius:99px"></div></div>
         <div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:6px">${snap.pct||0}% • ${(snap.clients||[]).length} clientes</div>
         ${st.ticket!==undefined?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(255,255,255,.025);border-radius:7px;padding:7px 8px;margin-bottom:6px">${[['Ticket',R$(st.ticket),'#38bdf8'],['Clientes',String(st.total||0),'#edf4ff'],['Novos',String(st.novos||0),'#34d399'],['Cancelados',String(st.cancelados||0),'#f87171']].map(([l,v,c])=>`<div><div class="lbl" style="margin-bottom:1px">${l}</div><div style="font-weight:700;font-size:10px;color:${c}">${v}</div></div>`).join('')}</div>`:''}
-        <button onclick="exportSnap('${key}')" style="width:100%;padding:4px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.15);color:#34d399;border-radius:6px;font-weight:600;font-size:8px">📤 Exportar</button>
+        <div style="display:flex;gap:5px">
+          <button onclick="exportSnap('${key}')" style="flex:1;padding:4px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.15);color:#34d399;border-radius:6px;font-weight:600;font-size:8px">📤 Exportar</button>
+          <button onclick="restaurarClientes('${key}')" style="flex:1;padding:4px;background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.15);color:#38bdf8;border-radius:6px;font-weight:600;font-size:8px">♻️ Restaurar</button>
+        </div>
       </div>`;
     }).join('')}
     </div>`;
@@ -799,17 +893,226 @@ function devolverSinal() {
 }
 
 function fecharMes() {
-  const atM = D.clients.filter(c=>c.type!=='antigo'&&c.status!=='cancelado');
+  const atM = D.clients.filter(c=>c.status!=='cancelado'&&c.status!=='concluido');
   const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tp(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
   const pct = D.meta>0?Math.min(100,Math.round(caixa/D.meta*100)):0;
   const key = mk();
+  // Breakdown por produto
+  const bdProd = {};
+  PR.forEach(p=>{bdProd[p.id]={n:p.n,c:p.c,t:0,q:0};});
+  D.clients.filter(c=>c.type!=='antigo').forEach(c=>{
+    const v=tp(c); if(bdProd[c.productId]){bdProd[c.productId].t+=v;bdProd[c.productId].q++;}
+  });
+  const topProd = Object.values(bdProd).sort((a,b)=>b.t-a.t)[0]||null;
+  const sinaisConv = D.clients.filter(c=>c.temSinal).length;
+  const sinaisTot = sinaisConv + D.extras.filter(e=>e.isSinal).length;
   D.history[key] = {
     clients:[...D.clients],extras:[...D.extras],meta:D.meta,caixa,pct,date:dh(),
-    stats:{ticket:atM.length>0?Math.round(caixa/atM.length):0,total:atM.length,novos:D.clients.filter(c=>c.type==='novo').length,cancelados:D.clients.filter(c=>c.status==='cancelado').length}
+    stats:{ticket:atM.length>0?Math.round(caixa/atM.length):0,total:atM.length,
+      novos:D.clients.filter(c=>c.type==='novo').length,
+      cancelados:D.clients.filter(c=>c.status==='cancelado').length,
+      topProd:topProd?{n:topProd.n,c:topProd.c,t:topProd.t,q:topProd.q}:null,
+      bdProd:Object.values(bdProd).filter(x=>x.t>0),
+      sinaisConv,sinaisTot,pct}
   };
-  D.clients=[]; D.extras=[]; D.sinais=[]; D.meta=0;
-  save(); toast('📦 Mês fechado!');
+  // ✅ CLIENTES FICAM — só marca pagamentos como do mês anterior
+  D.clients = D.clients.map(c=>({...c,
+    pagamentos:(c.pagamentos||[]).map(p=>({...p,mesAnterior:true}))
+  }));
+  D.extras=[]; D.sinais=[]; D.meta=0;
+  save();
+  // Mostrar resumo de fechamento
+  const topP = D.history[key]?.stats?.topProd;
+  const bdP = D.history[key]?.stats?.bdProd||[];
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `<div style="text-align:center;margin-bottom:12px"><div style="font-size:36px">📦</div><div style="font-weight:900;font-size:19px;margin-top:4px">Mês Fechado!</div><div style="font-size:11px;color:rgba(255,255,255,.38);margin-top:2px">${ms()}</div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px">
+      <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:11px;text-align:center">
+        <div class="lbl" style="margin-bottom:3px">Caixa Final</div>
+        <div class="mono" style="font-weight:900;font-size:16px;color:#34d399">${R$(caixa)}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">${pct}% da meta</div>
+      </div>
+      <div style="background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:11px;text-align:center">
+        <div class="lbl" style="margin-bottom:3px">Clientes</div>
+        <div class="mono" style="font-weight:900;font-size:16px;color:#38bdf8">${atM.length}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">ativos no mês</div>
+      </div>
+    </div>
+    ${topP?`<div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:11px;margin-bottom:12px">
+      <div class="lbl" style="margin-bottom:5px">🏆 Produto Destaque</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div><div style="font-weight:800;font-size:14px;color:${topP.c||'#a78bfa'}">${topP.n}</div><div style="font-size:10px;color:rgba(255,255,255,.38)">${topP.q} cliente(s)</div></div>
+        <div class="mono" style="font-weight:900;font-size:16px;color:${topP.c||'#a78bfa'}">${R$(topP.t)}</div>
+      </div>
+    </div>`:''}
+    ${bdP.length>1?`<div class="card" style="margin-bottom:12px"><div class="lbl" style="margin-bottom:7px">Breakdown Produtos</div>${bdP.map(p=>`<div style="display:flex;justify-content:space-between;font-size:11px;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="color:${p.c||'#edf4ff'}">${p.n} (${p.q})</span><span class="mono" style="font-weight:700;color:${p.c||'#34d399'}">${R$(p.t)}</span></div>`).join('')}</div>`:''}
+    <button onclick="closeModal()" style="width:100%;padding:11px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">🎉 Fechar</button>`;
+  document.getElementById('modal-overlay').classList.add('open');
 }
+
+function restaurarClientes(key) {
+  const snap = D.history[key];
+  if(!snap||!snap.clients?.length){ toast('Nenhum cliente para restaurar','#b91c1c'); return; }
+  let restaurados = 0;
+  snap.clients.forEach(c=>{
+    const jaExiste = D.clients.some(x=>x.nome===c.nome&&x.productId===c.productId);
+    if(!jaExiste){ D.clients.push({...c}); restaurados++; }
+  });
+  if(restaurados===0){ toast('Todos os clientes já estão na lista!'); return; }
+  save(); toast(`✅ ${restaurados} cliente(s) restaurado(s)!`);
+}
+
+function getSemanaKey() {
+  const now = new Date();
+  // Get Monday of current week
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day===0?-6:1);
+  const mon = new Date(now.setDate(diff));
+  return `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+}
+
+function getSemanaLabel(key) {
+  const start = new Date(key+'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate()+6);
+  return `${start.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} a ${end.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`;
+}
+
+function checkDashboardSemanal() {
+  const now = new Date();
+  if(now.getDay()!==1) return; // Só segunda-feira
+  const key = getSemanaKey();
+  const jaGerou = D.semanas && D.semanas[key];
+  if(jaGerou) return;
+  // Gera resumo da semana passada
+  const lastMon = new Date(now); lastMon.setDate(lastMon.getDate()-7);
+  const lastSun = new Date(now); lastSun.setDate(lastSun.getDate()-1);
+  const inRange = (dateStr) => {
+    if(!dateStr) return false;
+    const [d,m,y] = dateStr.split('/').map(Number);
+    const dt = new Date(y,m-1,d);
+    return dt>=lastMon && dt<=lastSun;
+  };
+  const entradas = D.clients.filter(c=>c.type!=='antigo')
+    .reduce((s,c)=>{
+      return s+(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior&&!p.historico).reduce((a,p)=>a+p.valor,0);
+    },0) + D.extras.filter(e=>inRange(e.data)).reduce((s,e)=>s+(e.valor||0),0);
+  const novos = D.clients.filter(c=>inRange(c.dataInicio)&&c.type==='novo').length;
+  const cancelados = D.clients.filter(c=>c.status==='cancelado').length;
+  const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tpMes(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
+  const Y=now.getFullYear(),M=now.getMonth(),Dd=now.getDate();
+  const mExp_ = wdT(Y,M)>0?(D.meta/wdT(Y,M))*wdA(Y,M,Dd):0;
+  const ritmo_ = mExp_>0?Math.round(caixa/mExp_*100):0;
+  // Melhor dia da semana
+  const pbd={};
+  D.clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior).forEach(p=>{pbd[p.data]=(pbd[p.data]||0)+p.valor;}));
+  D.extras.filter(e=>inRange(e.data)).forEach(e=>{pbd[e.data]=(pbd[e.data]||0)+e.valor;});
+  const bestDay = Object.entries(pbd).sort((a,b)=>b[1]-a[1])[0]||null;
+  const resumo = {
+    key, label:getSemanaLabel(key),
+    entradas, novos, cancelados, ritmo:ritmo_,
+    bestDay:bestDay?{data:bestDay[0],valor:bestDay[1]}:null,
+    date:dh()
+  };
+  if(!D.semanas) D.semanas={};
+  D.semanas[key] = resumo;
+  save();
+  // Mostrar modal com resumo
+  showResumoSemanal(resumo);
+}
+
+function showResumoSemanal(resumo) {
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `
+    <div style="font-weight:900;font-size:19px;margin-bottom:4px">📊 Resumo Semanal</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:14px">${resumo.label}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Entrou na semana</div>
+        <div class="mono" style="font-weight:900;font-size:18px;color:#34d399">${R$(resumo.entradas)}</div>
+      </div>
+      <div style="background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Ritmo da Meta</div>
+        <div class="mono" style="font-weight:900;font-size:18px;color:${resumo.ritmo>=100?'#34d399':resumo.ritmo>=75?'#38bdf8':'#f87171'}">${resumo.ritmo}%</div>
+      </div>
+      <div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Novos Clientes</div>
+        <div class="mono" style="font-weight:900;font-size:18px;color:#a78bfa">${resumo.novos}</div>
+      </div>
+      <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Melhor Dia</div>
+        <div style="font-weight:700;font-size:11px;color:#fbbf24">${resumo.bestDay?resumo.bestDay.data+' — '+R$(resumo.bestDay.valor):'—'}</div>
+      </div>
+    </div>
+    <div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:12px;text-align:center">Salvo na aba 📊 Semanas para análise posterior</div>
+    <button onclick="closeModal()" style="width:100%;padding:11px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">✅ Entendido</button>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function renderSemanas() {
+  const el = document.getElementById('view-semanas');
+  const entries = Object.entries(D.semanas||{}).sort((a,b)=>b[0].localeCompare(a[0]));
+
+  // Group by month (YYYY-MM)
+  const byMonth = {};
+  entries.forEach(([key,s])=>{
+    const monthKey = key.slice(0,7); // YYYY-MM
+    if(!byMonth[monthKey]) byMonth[monthKey]=[];
+    byMonth[monthKey].push([key,s]);
+  });
+
+  const months = Object.keys(byMonth).sort((a,b)=>b.localeCompare(a));
+  const openMonth = el.dataset.openMonth||months[0]||'';
+
+  el.innerHTML = `
+    <div style="font-weight:800;font-size:14px;margin-bottom:10px">📊 Dashboard Semanal</div>
+    ${months.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:28px;font-size:12px;line-height:1.8">Nenhum resumo ainda.<br>Aparece toda segunda-feira automaticamente.</div>':''}
+    <div style="display:flex;flex-direction:column;gap:6px">
+    ${months.map(mkey=>{
+      const isOpen = mkey===openMonth;
+      const label = new Date(mkey+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+      const semanas = byMonth[mkey];
+      const totalEntradas = semanas.reduce((s,[,x])=>s+(x.entradas||0),0);
+      const totalNovos = semanas.reduce((s,[,x])=>s+(x.novos||0),0);
+      return `<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-radius:12px;overflow:hidden">
+        <div onclick="toggleMesSemana('${mkey}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;touch-action:manipulation">
+          <div>
+            <div style="font-weight:800;font-size:13px;text-transform:capitalize">${label}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:2px">${semanas.length} semana(s) • ${R$(totalEntradas)} • ${totalNovos} novo(s)</div>
+          </div>
+          <div style="font-size:16px;transition:.2s">${isOpen?'▲':'▼'}</div>
+        </div>
+        ${isOpen?`<div style="border-top:1px solid rgba(56,189,248,.11);padding:8px">
+          ${semanas.map(([key,s])=>`
+            <div onclick="openResumoSemanal('${key}')" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:10px 12px;margin-bottom:5px;cursor:pointer;touch-action:manipulation;display:flex;justify-content:space-between;align-items:center">
+              <div>
+                <div style="font-weight:700;font-size:11px">${s.label||key}</div>
+                <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">${s.novos||0} novo(s) • ${s.date||''}</div>
+              </div>
+              <div style="text-align:right">
+                <div class="mono" style="font-weight:800;font-size:12px;color:#34d399">${R$(s.entradas||0)}</div>
+                <div style="font-size:9px;color:${(s.ritmo||0)>=100?'#34d399':(s.ritmo||0)>=75?'#38bdf8':'#f87171'};font-weight:700">${s.ritmo||0}% ritmo</div>
+              </div>
+            </div>`).join('')}
+        </div>`:''}
+      </div>`;
+    }).join('')}
+    </div>`;
+  // Restore scroll position
+  el.dataset.openMonth = openMonth;
+}
+
+function toggleMesSemana(mkey) {
+  const el = document.getElementById('view-semanas');
+  el.dataset.openMonth = el.dataset.openMonth===mkey ? '' : mkey;
+  renderSemanas();
+}
+
+function openResumoSemanal(key) {
+  const s = D.semanas[key];
+  if(!s) return;
+  showResumoSemanal(s);
+}
+
 
 function exportSnap(key) {
   const snap = D.history[key];
