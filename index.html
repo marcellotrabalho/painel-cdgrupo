@@ -102,6 +102,7 @@ button:active{transform:scale(.97)}
         <div class="sync-dot pu" id="sync-dot"></div>
         <span class="sync-txt" id="sync-txt">...</span>
       </div>
+      <button onclick="forcSync()" style="padding:4px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);border-radius:6px;font-size:9px;font-weight:700" title="Forçar sincronização">🔄</button>
       <button class="btn-reg" onclick="openModal('choice')">+ Reg.</button>
       <span id="clock" class="mono"></span>
     </div>
@@ -269,9 +270,27 @@ function setSynced(ok) {
   else { dot.className='sync-dot pu'; txt.className='sync-txt'; txt.textContent='⚠️ Offline'; }
 }
 
+async function forcSync() {
+  const txt = document.getElementById('sync-txt');
+  txt.textContent='🔄 Sync...';
+  try {
+    const r = await fetch(FB_URL+'.json?t='+Date.now());
+    if(!r.ok) { toast('Erro ao conectar Firebase','#b91c1c'); return; }
+    const j = await r.json();
+    if(j) {
+      D = norm(j);
+      try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
+      fixPagamentosAntigos();
+      renderAll();
+      setSynced(true);
+      toast('✅ Sincronizado!');
+    }
+  } catch(e){ toast('Sem conexão com Firebase','#b91c1c'); setSynced(false); }
+}
+
 async function syncPull() {
   try {
-    const r = await fetch(FB_URL+'.json');
+    const r = await fetch(FB_URL+'.json?t='+Date.now(), {cache:'no-store'});
     if(!r.ok) { setSynced(false); return; }
     const j = await r.json();
     if(j) {
