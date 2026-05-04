@@ -528,14 +528,27 @@ function renderPainel() {
 
     ${(()=>{
       const pbd={};
-      clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>!p.historico).forEach(p=>{pbd[p.data]=(pbd[p.data]||0)+p.valor;}));
+      clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>!p.mesAnterior&&!p.historico).forEach(p=>{pbd[p.data]=(pbd[p.data]||0)+p.valor;}));
       extras.forEach(e=>{pbd[e.data]=(pbd[e.data]||0)+e.valor;});
-      const best=Object.entries(pbd).sort((a,b)=>b[1]-a[1])[0]||null;
-      if(!best) return '';
-      return `<div class="card" style="border-left:3px solid #fbbf24;display:flex;align-items:center;gap:10px;background:rgba(251,191,36,.04)">
-        <span style="font-size:20px">🏆</span>
-        <div><div class="lbl" style="margin-bottom:1px">Melhor Dia do Mês</div>
-        <div style="font-weight:800;font-size:13px;color:#fbbf24">${best[0]} — ${R$(best[1])}</div></div>
+      const bestMes=Object.entries(pbd).sort((a,b)=>b[1]-a[1])[0]||null;
+      const pbdAll={...pbd};
+      Object.values(D.history||{}).forEach(snap=>{
+        (snap.clients||[]).forEach(c=>(c.pagamentos||[]).forEach(p=>{if(p.data)pbdAll[p.data]=(pbdAll[p.data]||0)+p.valor;}));
+        (snap.extras||[]).forEach(e=>{if(e.data)pbdAll[e.data]=(pbdAll[e.data]||0)+e.valor;});
+      });
+      const bestAll=Object.entries(pbdAll).sort((a,b)=>b[1]-a[1])[0]||null;
+      if(!bestAll&&!bestMes)return'';
+      return`<div class="card" style="background:rgba(251,191,36,.04);border:1px solid rgba(251,191,36,.2)">
+        <div style="display:flex;align-items:center;gap:10px;${bestMes?'margin-bottom:8px':''}">
+          <span style="font-size:22px">🏆</span>
+          <div><div class="lbl" style="margin-bottom:1px;color:#fbbf24">Melhor Dia da Empresa</div>
+          <div style="font-weight:900;font-size:15px;color:#fbbf24">${bestAll?bestAll[0]+' — '+R$(bestAll[1]):'—'}</div></div>
+        </div>
+        ${bestMes?`<div style="display:flex;align-items:center;gap:10px;padding-top:8px;border-top:1px solid rgba(251,191,36,.15)">
+          <span style="font-size:16px">📅</span>
+          <div><div class="lbl" style="margin-bottom:1px">Melhor Dia do Mês</div>
+          <div style="font-weight:800;font-size:13px;color:rgba(251,191,36,.7)">${bestMes[0]} — ${R$(bestMes[1])}</div></div>
+        </div>`:''}
       </div>`;
     })()}
     ${(()=>{
