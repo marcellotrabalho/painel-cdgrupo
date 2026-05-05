@@ -94,7 +94,7 @@ button:active{transform:scale(.97)}
       <button class="tab-btn active" onclick="setTab('painel')" id="tab-painel">📊 Painel</button>
       <button class="tab-btn" onclick="setTab('clientes')" id="tab-clientes">👥 Clientes</button>
       <button class="tab-btn" onclick="setTab('cadastro')" id="tab-cadastro">📋 Cadastro</button>
-      <button class="tab-btn" onclick="setTab('historico')" id="tab-historico">📅 Histórico</button>
+      <button class="tab-btn" onclick="setTab('historico')" id="tab-historico">📊 Métricas</button>
       <button class="tab-btn" onclick="setTab('semanas')" id="tab-semanas">📊 Semanas</button>
     </div>
     <div class="topright">
@@ -544,10 +544,9 @@ function renderPainel() {
           <div><div class="lbl" style="margin-bottom:1px;color:#fbbf24">Melhor Dia da Empresa</div>
           <div style="font-weight:900;font-size:15px;color:#fbbf24">${bestAll?bestAll[0]+' — '+R$(bestAll[1]):'—'}</div></div>
         </div>
-        ${bestMes?`<div style="display:flex;align-items:center;gap:10px;padding-top:8px;border-top:1px solid rgba(251,191,36,.15)">
-          <span style="font-size:16px">📅</span>
-          <div><div class="lbl" style="margin-bottom:1px">Melhor Dia do Mês</div>
-          <div style="font-weight:800;font-size:13px;color:rgba(251,191,36,.7)">${bestMes[0]} — ${R$(bestMes[1])}</div></div>
+        ${bestMes?`<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(251,191,36,.1);display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:9px;color:rgba(251,191,36,.5);font-weight:700;letter-spacing:1px;text-transform:uppercase">Melhor dia do mês</span>
+          <span style="font-size:10px;color:rgba(251,191,36,.6);font-weight:700;font-family:'JetBrains Mono',monospace">${bestMes[0]} — ${R$(bestMes[1])}</span>
         </div>`:''}
       </div>`;
     })()}
@@ -781,71 +780,212 @@ function renderCadastro() {
 
 // ─── HISTORICO ────────────────────────────────────────────────────────────────
 function renderHistorico() {
-  const entries=Object.entries(D.history||{}).sort((a,b)=>b[0].localeCompare(a[0]));
+  const entries = Object.entries(D.history||{}).sort((a,b)=>a[0].localeCompare(b[0]));
+  const el = document.getElementById('view-historico');
+  if(!entries.length){
+    el.innerHTML=`<div style="text-align:center;color:rgba(255,255,255,.38);padding:40px;font-size:13px;line-height:2">Nenhum mês arquivado ainda.<br><span style="opacity:.6">Feche o mês para começar a ver métricas.</span></div>`;
+    return;
+  }
+
+  // ── DATA PREP ──────────────────────────────────────────────────────────────
+  const allMonths = entries.map(([k])=>k);
+  const PR_IDS = PR.map(p=>p.id);
+  // Get selected months from state (default all)
+  const selMonths = el.dataset.selMonths ? JSON.parse(el.dataset.selMonths) : allMonths;
+  const selProds = el.dataset.selProds ? JSON.parse(el.dataset.selProds) : PR_IDS;
+  const filtEntries = entries.filter(([k])=>selMonths.includes(k));
+
+  // ── CALCS ──────────────────────────────────────────────────────────────────
+  const totalMeta = entries.reduce((s,[,snap])=>s+(snap.meta||0),0);
+  const totalCaixa = entries.reduce((s,[,snap])=>s+(snap.caixa||0),0);
+  const tickets = entries.map(([k,snap])=>({k,t:snap.stats?.ticket||0})).filter(x=>x.t>0);
+  const maxCaixa = Math.max(...entries.map(([,s])=>s.caixa||0),1);
+  const maxTicket = Math.max(...tickets.map(x=>x.t),1);
+  // Projeção anual: média mensal * 12
+  const mediaM = entries.length>0?totalCaixa/entries.length:0;
+  const projAnual = mediaM*12;
+  // Acumulado por produto
+  const accumProd = {};
+  PR.forEach(p=>{accumProd[p.id]={n:p.n,c:p.c,t:0,q:0};});
+  entries.forEach(([,snap])=>{(snap.stats?.bdProd||[]).forEach(p=>{if(accumProd[p.id||PR.find(x=>x.n===p.n)?.id]){const id=p.id||PR.find(x=>x.n===p.n)?.id;if(id){accumProd[id].t+=p.t||0;accumProd[id].q+=p.q||0;}}});});
+  // Fix: match by name if no id
+  entries.forEach(([,snap])=>{(snap.stats?.bdProd||[]).forEach(p=>{const pr=PR.find(x=>x.n===p.n);if(pr){accumProd[pr.id].t+=p.t||0;accumProd[pr.id].q+=p.q||0;}});});
+  const maxAccum = Math.max(...Object.values(accumProd).map(x=>x.t),1);
+
+  // ── MONTH LABELS ──────────────────────────────────────────────────────────
+  const mLbl = k=>new Date(k+'-02').toLocaleDateString('pt-BR',{month:'short',year:'2-digit'});
+
+  // ── HTML ──────────────────────────────────────────────────────────────────
+  el.innerHTML=`
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div style="font-weight:900;font-size:16px">📊 Métricas</div>
+    <button onclick="fecharMes()" style="padding:4px 10px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:6px;font-weight:700;font-size:9px">📦 Fechar Mês</button>
+  </div>
+
+  <!-- KPIs GERAIS -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+    <div class="card" style="text-align:center;border-top:2px solid #38bdf8">
+      <div class="lbl" style="margin-bottom:4px">Meta Acumulada</div>
+      <div class="mono" style="font-weight:900;font-size:14px;color:#38bdf8">${R$(totalMeta)}</div>
+    </div>
+    <div class="card" style="text-align:center;border-top:2px solid #34d399">
+      <div class="lbl" style="margin-bottom:4px">Caixa Acumulado</div>
+      <div class="mono" style="font-weight:900;font-size:14px;color:#34d399">${R$(totalCaixa)}</div>
+      <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">${totalMeta>0?Math.round(totalCaixa/totalMeta*100):0}% das metas</div>
+    </div>
+    <div class="card" style="text-align:center;border-top:2px solid #a78bfa">
+      <div class="lbl" style="margin-bottom:4px">Projeção Anual</div>
+      <div class="mono" style="font-weight:900;font-size:14px;color:#a78bfa">${R$(projAnual)}</div>
+      <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">média de ${entries.length} meses</div>
+    </div>
+  </div>
+
+  <!-- FILTRO DE MESES -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="lbl" style="margin-bottom:8px">🗓 Filtrar Meses</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
+      <button onclick="selAllMonths()" style="padding:3px 8px;border:1px solid rgba(56,189,248,.3);border-radius:20px;background:rgba(56,189,248,.1);color:#38bdf8;font-weight:700;font-size:8px">Todos</button>
+      ${allMonths.map(k=>`<button onclick="toggleMonth('${k}')" id="msel-${k}" style="padding:3px 8px;border:1.5px solid ${selMonths.includes(k)?'#38bdf8':'rgba(255,255,255,.1)'};border-radius:20px;background:${selMonths.includes(k)?'rgba(56,189,248,.15)':'transparent'};color:${selMonths.includes(k)?'#38bdf8':'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">${mLbl(k)}</button>`).join('')}
+    </div>
+    <div class="lbl" style="margin-bottom:6px">📦 Filtrar Produtos</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      ${PR.map(p=>`<button onclick="toggleProd('${p.id}')" id="psel-${p.id}" style="padding:3px 8px;border:1.5px solid ${selProds.includes(p.id)?p.c:'rgba(255,255,255,.1)'};border-radius:20px;background:${selProds.includes(p.id)?p.b:'transparent'};color:${selProds.includes(p.id)?p.c:'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">${p.n}</button>`).join('')}
+    </div>
+  </div>
+
+  <!-- GRÁFICO CRESCIMENTO MÊS A MÊS -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="lbl" style="margin-bottom:12px">📈 Crescimento Mês a Mês</div>
+    <div style="display:flex;align-items:flex-end;gap:6px;height:100px;margin-bottom:10px;overflow-x:auto">
+      ${filtEntries.map(([k,snap],idx)=>{
+        const h=Math.round((snap.caixa/maxCaixa)*90);
+        const bat=snap.caixa>=(snap.meta||0);
+        const prev=idx>0?filtEntries[idx-1][1].caixa:null;
+        const growPct=prev&&prev>0?Math.round((snap.caixa-prev)/prev*100):null;
+        return`<div style="flex:1;min-width:40px;display:flex;flex-direction:column;align-items:center;gap:2px">
+          ${growPct!==null?`<div style="font-size:7px;color:${growPct>=0?'#34d399':'#f87171'};font-weight:700">${growPct>=0?'+':''}${growPct}%</div>`:'<div style="font-size:7px"> </div>'}
+          <div class="mono" style="font-size:6px;color:rgba(255,255,255,.5)">${R$(snap.caixa)}</div>
+          <div style="width:100%;height:${h}px;min-height:4px;background:${bat?'linear-gradient(180deg,#34d399,#16a34a)':'linear-gradient(180deg,#f87171,#b91c1c)'};border-radius:4px 4px 0 0;position:relative"></div>
+          <div style="font-size:7px;color:rgba(255,255,255,.38)">${mLbl(k)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="display:flex;gap:12px;font-size:8px;color:rgba(255,255,255,.38)"><span>🟢 Bateu meta</span><span>🔴 Não bateu</span></div>
+  </div>
+
+  <!-- GRÁFICO COMPARATIVO PRODUTOS (estilo Excel) -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="lbl" style="margin-bottom:12px">📊 Comparativo por Produto</div>
+    ${filtEntries.length===0?'<div style="color:rgba(255,255,255,.38);font-size:11px;text-align:center;padding:16px">Selecione pelo menos um mês.</div>':''}
+    <div style="overflow-x:auto">
+      <div style="display:flex;align-items:flex-end;gap:3px;height:120px;min-width:${Math.max(300,filtEntries.length*80)}px;margin-bottom:10px">
+        ${filtEntries.map(([k,snap])=>{
+          const bd=snap.stats?.bdProd||[];
+          const mMax=Math.max(...selProds.map(pid=>{const p=bd.find(x=>x.n===PR.find(r=>r.id===pid)?.n||x.id===pid);return p?p.t:0;}),1);
+          return`<div style="flex:1;min-width:70px;display:flex;flex-direction:column;align-items:center;gap:2px">
+            <div style="width:100%;display:flex;align-items:flex-end;gap:2px;height:100px">
+              ${selProds.map(pid=>{
+                const pr=PR.find(r=>r.id===pid);
+                const p=bd.find(x=>x.n===pr?.n||x.id===pid);
+                const val=p?p.t:0;
+                const h=mMax>0?Math.round((val/mMax)*95):0;
+                return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100px">
+                  <div class="mono" style="font-size:5px;color:${pr?.c||'#fff'};margin-bottom:1px;text-align:center">${val>0?R$(val):''}</div>
+                  <div style="width:100%;height:${h}px;min-height:${val>0?3:0}px;background:${pr?.c||'#38bdf8'};border-radius:3px 3px 0 0;opacity:.85"></div>
+                </div>`;
+              }).join('')}
+            </div>
+            <div style="font-size:7px;color:rgba(255,255,255,.38);text-align:center">${mLbl(k)}</div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+      ${selProds.map(pid=>{const pr=PR.find(r=>r.id===pid);return pr?`<span style="font-size:8px;color:${pr.c}">■ ${pr.n}</span>`:''}).join('')}
+    </div>
+  </div>
+
+  <!-- EVOLUÇÃO TICKET MÉDIO -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="lbl" style="margin-bottom:12px">🎫 Evolução do Ticket Médio</div>
+    <div style="display:flex;align-items:flex-end;gap:6px;height:80px;margin-bottom:8px;overflow-x:auto">
+      ${filtEntries.map(([k,snap])=>{
+        const t=snap.stats?.ticket||0;
+        const h=maxTicket>0?Math.round((t/maxTicket)*75):0;
+        return`<div style="flex:1;min-width:40px;display:flex;flex-direction:column;align-items:center;gap:2px">
+          <div class="mono" style="font-size:6px;color:#a78bfa">${t>0?R$(t):''}</div>
+          <div style="width:100%;height:${h}px;min-height:${t>0?3:0}px;background:linear-gradient(180deg,#a78bfa,#7c3aed);border-radius:3px 3px 0 0"></div>
+          <div style="font-size:7px;color:rgba(255,255,255,.38)">${mLbl(k)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="font-size:9px;color:rgba(255,255,255,.38)">Ticket médio de todos os clientes ativos por mês.</div>
+  </div>
+
+  <!-- RECEITA ACUMULADA POR PRODUTO -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="lbl" style="margin-bottom:9px">💎 Receita Acumulada por Produto</div>
+    ${Object.values(accumProd).filter(x=>x.t>0).sort((a,b)=>b.t-a.t).map(p=>`
+      <div style="margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+          <span style="font-size:11px;font-weight:700;color:${p.c}">${p.n}</span>
+          <span class="mono" style="font-weight:800;font-size:11px;color:${p.c}">${R$(p.t)}</span>
+        </div>
+        <div style="height:5px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden">
+          <div style="height:100%;width:${Math.round(p.t/maxAccum*100)}%;background:${p.c};border-radius:99px"></div>
+        </div>
+      </div>`).join('')}
+  </div>
+
+  <!-- MESES ARQUIVADOS -->
+  <div class="lbl" style="margin-bottom:8px">🗂 Meses Arquivados</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:9px">
+  ${entries.slice().reverse().map(([key,snap])=>{
+    const lb=new Date(key+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    const st=snap.stats||{};
+    return`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-top:2px solid ${snap.caixa>=(snap.meta||0)?'#34d399':'#38bdf8'};border-radius:11px;padding:12px 13px">
+      <div class="lbl" style="margin-bottom:1px;text-transform:capitalize">${lb}</div>
+      <div style="font-weight:700;font-size:10px;margin-bottom:7px">Fechado em ${snap.date}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px">
+        <div style="background:rgba(255,255,255,.03);border-radius:6px;padding:6px 8px"><div class="lbl" style="margin-bottom:1px">Meta</div><div class="mono" style="font-weight:800;font-size:11px;color:#38bdf8">${R$(snap.meta)}</div></div>
+        <div style="background:rgba(52,211,153,.06);border-radius:6px;padding:6px 8px"><div class="lbl" style="color:#34d399;margin-bottom:1px">Caixa</div><div class="mono" style="font-weight:800;font-size:11px;color:#34d399">${R$(snap.caixa)}</div></div>
+      </div>
+      <div style="height:3px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${Math.min(100,snap.pct||0)}%;background:${(snap.pct||0)>=100?'#34d399':'#38bdf8'};border-radius:99px"></div></div>
+      <div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:6px">${snap.pct||0}% • ${(snap.clients||[]).length} clientes</div>
+      ${st.bestDay?`<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.15);border-radius:7px;padding:6px 9px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div class="lbl" style="margin-bottom:1px">🏆 Melhor Dia</div><div style="font-size:10px;color:#fbbf24;font-weight:700">${st.bestDay.data}</div></div><div class="mono" style="font-weight:800;font-size:12px;color:#fbbf24">${R$(st.bestDay.valor)}</div></div>`:''}
+      ${st.topProd?`<div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.15);border-radius:7px;padding:6px 9px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div class="lbl" style="margin-bottom:1px">🏆 Produto Top</div><div style="font-size:10px;color:${st.topProd.c||'#a78bfa'};font-weight:700">${st.topProd.n}</div></div><div class="mono" style="font-weight:800;font-size:12px;color:${st.topProd.c||'#a78bfa'}">${R$(st.topProd.t)}</div></div>`:''}
+      ${st.bdProd&&st.bdProd.length>0?`<div style="margin-bottom:6px"><div class="lbl" style="margin-bottom:5px">Breakdown</div>${st.bdProd.sort((a,b)=>b.t-a.t).map(p=>{const pr=PR.find(r=>r.n===p.n);const c=pr?.c||'#38bdf8';return`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:10px;font-weight:600;color:${c}">${p.n} <span style="font-size:8px;color:rgba(255,255,255,.38)">(${p.q})</span></span><span class="mono" style="font-weight:700;font-size:10px;color:${c}">${R$(p.t)}</span></div><div style="height:3px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${st.bdProd[0]?.t>0?Math.round(p.t/st.bdProd[0].t*100):0}%;background:${c};border-radius:99px"></div></div>`;}).join('')}</div>`:''}
+      ${st.ticket!==undefined?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(255,255,255,.025);border-radius:7px;padding:7px 8px;margin-bottom:6px">${[['Ticket',R$(st.ticket),'#38bdf8'],['Clientes',String(st.total||0),'#edf4ff'],['Novos',String(st.novos||0),'#34d399'],['Cancelados',String(st.cancelados||0),'#f87171']].map(([l,v,c])=>`<div><div class="lbl" style="margin-bottom:1px">${l}</div><div style="font-weight:700;font-size:10px;color:${c}">${v}</div></div>`).join('')}</div>`:''}
+      <button onclick="exportSnap('${key}')" style="width:100%;padding:4px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.15);color:#34d399;border-radius:6px;font-weight:600;font-size:8px">📤 Exportar</button>
+    </div>`;
+  }).join('')}
+  </div>`;
+}
+
+function selAllMonths(){
   const el=document.getElementById('view-historico');
-  const chartE=[...entries].reverse().slice(-6);
-  const maxC=Math.max(...chartE.map(([,s])=>s.caixa||0),1);
-  const chartHtml=chartE.length>0?`<div class="card" style="margin-bottom:12px"><div class="lbl" style="margin-bottom:12px">📈 Histórico de Metas</div><div style="display:flex;align-items:flex-end;gap:6px;height:80px;margin-bottom:8px">${chartE.map(([key,snap])=>{const lb=new Date(key+'-02').toLocaleDateString('pt-BR',{month:'short'});const h=Math.round((snap.caixa/maxC)*100);const bat=snap.caixa>=(snap.meta||0);return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px"><div class="mono" style="font-size:7px;color:${bat?'#34d399':'#f87171'};font-weight:700">${snap.pct||0}%</div><div style="width:100%;height:60px;display:flex;align-items:flex-end"><div style="width:100%;height:${h}%;min-height:4px;background:${bat?'linear-gradient(180deg,#34d399,#16a34a)':'linear-gradient(180deg,#f87171,#b91c1c)'};border-radius:4px 4px 0 0"></div></div><div style="font-size:7px;color:rgba(255,255,255,.38)">${lb}</div><div class="mono" style="font-size:6px;color:${bat?'#34d399':'#f87171'}">${R$(snap.caixa)}</div></div>`;}).join('')}</div><div style="display:flex;justify-content:space-between;font-size:9px;color:rgba(255,255,255,.38);padding-top:6px;border-top:1px solid rgba(255,255,255,.05)"><span>🟢 Bateu</span><span>🔴 Não bateu</span></div></div>`:'';
-  el.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><div class="lbl" style="margin-bottom:0">Meses Arquivados</div><button onclick="fecharMes()" style="padding:4px 10px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:6px;font-weight:700;font-size:9px">📦 Fechar Mês</button></div>${chartHtml}${entries.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:28px;font-size:12px">Nenhum mês arquivado.</div>':''}<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:9px">${entries.map(([key,snap])=>{const lb=new Date(key+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});const st=snap.stats||{};return`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-top:2px solid ${snap.caixa>=(snap.meta||0)?'#34d399':'#38bdf8'};border-radius:11px;padding:12px 13px"><div class="lbl" style="margin-bottom:1px;text-transform:capitalize">${lb}</div><div style="font-weight:700;font-size:10px;margin-bottom:7px">Fechado em ${snap.date}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px"><div style="background:rgba(255,255,255,.03);border-radius:6px;padding:6px 8px"><div class="lbl" style="margin-bottom:1px">Meta</div><div class="mono" style="font-weight:800;font-size:11px;color:#38bdf8">${R$(snap.meta)}</div></div><div style="background:rgba(52,211,153,.06);border-radius:6px;padding:6px 8px"><div class="lbl" style="color:#34d399;margin-bottom:1px">Caixa</div><div class="mono" style="font-weight:800;font-size:11px;color:#34d399">${R$(snap.caixa)}</div></div></div><div style="height:3px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${Math.min(100,snap.pct||0)}%;background:${(snap.pct||0)>=100?'#34d399':'#38bdf8'};border-radius:99px"></div></div><div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:6px">${snap.pct||0}% • ${(snap.clients||[]).length} clientes</div>${st.bestDay?`<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.15);border-radius:7px;padding:6px 9px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div class="lbl" style="margin-bottom:1px">🏆 Melhor Dia</div><div style="font-size:10px;color:#fbbf24;font-weight:700">${st.bestDay.data}</div></div><div class="mono" style="font-weight:800;font-size:12px;color:#fbbf24">${R$(st.bestDay.valor)}</div></div>`:''} ${st.topProd?`<div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.15);border-radius:7px;padding:6px 9px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div class="lbl" style="margin-bottom:1px">🏆 Produto Top</div><div style="font-size:10px;color:${st.topProd.c||'#a78bfa'};font-weight:700">${st.topProd.n} (${st.topProd.q})</div></div><div class="mono" style="font-weight:800;font-size:12px;color:${st.topProd.c||'#a78bfa'}">${R$(st.topProd.t)}</div></div>`:''} ${st.ticket!==undefined?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(255,255,255,.025);border-radius:7px;padding:7px 8px;margin-bottom:6px">${[['Ticket',R$(st.ticket),'#38bdf8'],['Clientes',String(st.total||0),'#edf4ff'],['Novos',String(st.novos||0),'#34d399'],['Cancelados',String(st.cancelados||0),'#f87171']].map(([l,v,c])=>`<div><div class="lbl" style="margin-bottom:1px">${l}</div><div style="font-weight:700;font-size:10px;color:${c}">${v}</div></div>`).join('')}</div>`:''}<button onclick="exportSnap('${key}')" style="width:100%;padding:4px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.15);color:#34d399;border-radius:6px;font-weight:600;font-size:8px">📤 Exportar</button></div>`;}).join('')}</div>`;
+  const allM=Object.keys(D.history||{}).sort((a,b)=>a.localeCompare(b));
+  el.dataset.selMonths=JSON.stringify(allM);
+  renderHistorico();
+}
+function toggleMonth(k){
+  const el=document.getElementById('view-historico');
+  const allM=Object.keys(D.history||{}).sort((a,b)=>a.localeCompare(b));
+  let sel=el.dataset.selMonths?JSON.parse(el.dataset.selMonths):allM;
+  if(sel.includes(k)) sel=sel.filter(x=>x!==k); else sel=[...sel,k];
+  if(!sel.length) sel=allM;
+  el.dataset.selMonths=JSON.stringify(sel);
+  renderHistorico();
+}
+function toggleProd(pid){
+  const el=document.getElementById('view-historico');
+  let sel=el.dataset.selProds?JSON.parse(el.dataset.selProds):PR.map(p=>p.id);
+  if(sel.includes(pid)) sel=sel.filter(x=>x!==pid); else sel=[...sel,pid];
+  if(!sel.length) sel=PR.map(p=>p.id);
+  el.dataset.selProds=JSON.stringify(sel);
+  renderHistorico();
 }
 
-function sinalEntrou(idx) {
-  const s = (D.sinais||[])[idx];
-  if(!s) return;
-  // Abre modal perguntando quanto pagou a mais e forma de pagamento
-  openModal('sinalEntrou', {idx, sinal:s});
-}
-
-function confirmarSinalEntrou(idx, extraValor, payMethod, diaCobranca) {
-  const s = (D.sinais||[])[idx];
-  if(!s) return;
-  const pagamentos = [{valor:s.valorSinal, data:dh(), mes:ms()+' (sinal)'}];
-  if(extraValor>0) pagamentos.push({valor:extraValor, data:dh(), mes:ms()});
-  // Remove o extra do sinal do caixa pois vai virar pagamento do cliente
-  const extraIdx = D.extras.findIndex(e=>e.isSinal && e.sinalNome===s.nome);
-  if(extraIdx>=0) D.extras.splice(extraIdx,1);
-  D.clients.push({nome:s.nome,insta:s.insta||'',segInicio:s.segInicio||0,productId:s.productId,productName:s.productName,fullPrice:s.fullPrice,payMethod:payMethod||'pix',diaCobranca:payMethod==='boleto'?diaCobranca:null,pagamentos,dataInicio:dh(),mesesContrato:0,status:'ativo',type:'novo',temSinal:true});
-  D.sinais.splice(idx,1);
-  D.ativos++;
-  closeModal(); save(); toast('✅ Entrou! +1 no ecossistema.');
-}
-
-function sinalCorreu(idx) {
-  const s = (D.sinais||[])[idx];
-  if(!s) return;
-  // Remove o extra do sinal que entrou no caixa
-  const extraIdx = D.extras.findIndex(e=>e.isSinal && e.sinalNome===s.nome);
-  if(extraIdx>=0) D.extras.splice(extraIdx,1);
-  D.sinais.splice(idx,1);
-  // Pergunta se pediu dinheiro de volta
-  openModal('sinalCorreu', {nome:s.nome, valor:s.valorSinal});
-}
-
-function setStatus(i, st) {
-  D.clients[i].status = st;
-  save();
-}
-
-function delExtra(i) {
-  D.extras.splice(i,1);
-  save(); toast('✅ Removido.');
-}
-
-function confirmDel(i, nome, isExtra) {
-  document.getElementById('confirm-name').textContent = nome;
-  document.getElementById('confirm-ok').onclick = () => {
-    if(isExtra){ D.extras.splice(i,1); }
-    else { D.clients.splice(i,1); D.ativos=Math.max(0,D.ativos-1); }
-    closeConfirm(); save(); toast('✅ Removido.');
-  };
-  document.getElementById('confirm-overlay').classList.add('open');
-}
-function closeConfirm(){ document.getElementById('confirm-overlay').classList.remove('open'); }
-
-function devolverSinal() {
-  // Sinal já foi removido do caixa em sinalCorreu, não precisa fazer nada a mais
-  closeModal(); save(); toast('❌ Correu. Dinheiro devolvido.','#b91c1c');
-}
 
 function fecharMes() {
   const now = new Date(), Y=now.getFullYear(), M=now.getMonth();
@@ -934,6 +1074,7 @@ function renderSemanas() {
 
 function toggleMesSemana(mkey){const el=document.getElementById('view-semanas');el.dataset.openMonth=el.dataset.openMonth===mkey?'':mkey;renderSemanas();}
 function openResumoSemanal(key){const s=D.semanas[key];if(!s)return;showResumoSemanal(s);}
+
 
 function exportSnap(key) {
   const snap = D.history[key];
