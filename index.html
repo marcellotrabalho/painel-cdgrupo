@@ -780,211 +780,92 @@ function renderCadastro() {
 
 // ─── HISTORICO ────────────────────────────────────────────────────────────────
 function renderHistorico() {
-  const entries = Object.entries(D.history||{}).sort((a,b)=>a[0].localeCompare(b[0]));
-  const el = document.getElementById('view-historico');
-  if(!entries.length){
-    el.innerHTML=`<div style="text-align:center;color:rgba(255,255,255,.38);padding:40px;font-size:13px;line-height:2">Nenhum mês arquivado ainda.<br><span style="opacity:.6">Feche o mês para começar a ver métricas.</span></div>`;
-    return;
+  const entries=Object.entries(D.history||{}).sort((a,b)=>a[0].localeCompare(b[0]));
+  const el=document.getElementById('view-historico');
+  if(!entries.length){el.innerHTML=`<div style="text-align:center;color:rgba(255,255,255,.38);padding:40px;font-size:13px;line-height:2">Nenhum mês arquivado ainda.</div>`;return;}
+  const allM=entries.map(([k])=>k);
+  const selM=el.dataset.selM?JSON.parse(el.dataset.selM):allM;
+  const selBd=el.dataset.selBd||'todos';
+  const filtE=entries.filter(([k])=>selM.includes(k));
+  const mLbl=k=>new Date(k+'-02').toLocaleDateString('pt-BR',{month:'short',year:'2-digit'});
+  const totalMeta=entries.reduce((s,[,x])=>s+(x.meta||0),0);
+  const totalCaixa=entries.reduce((s,[,x])=>s+(x.caixa||0),0);
+  const projAnual=(entries.length>0?totalCaixa/entries.length:0)*12;
+  const maxC=Math.max(...filtE.map(([,s])=>s.caixa||0),1);
+  const maxT=Math.max(...filtE.map(([,s])=>s.stats?.ticket||0),1);
+  const bdSrc=selBd==='todos'?entries:entries.filter(([k])=>k===selBd);
+  const acc={};PR.forEach(p=>{acc[p.id]={n:p.n,c:p.c,t:0,q:0};});
+  bdSrc.forEach(([,snap])=>{(snap.stats?.bdProd||[]).forEach(p=>{const pr=PR.find(x=>x.n===p.n);if(pr){acc[pr.id].t+=p.t||0;acc[pr.id].q+=p.q||0;}});});
+  const bdItems=Object.values(acc).filter(x=>x.t>0).sort((a,b)=>b.t-a.t);
+  const bdMax=bdItems[0]?.t||1;
+  function barchart(items,maxV,colFn,lblFn,valFn){
+    if(!items.length)return'<div style="color:rgba(255,255,255,.38);text-align:center;padding:16px;font-size:11px">Nenhum dado ainda.</div>';
+    const H=100;
+    const steps=[0,.25,.5,.75,1].reverse();
+    return`<div style="display:flex;gap:0;align-items:stretch">
+      <div style="display:flex;flex-direction:column;justify-content:space-between;padding-bottom:22px;padding-right:5px;flex-shrink:0">
+        ${steps.map(s=>`<div style="font-size:6px;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace;text-align:right">${R$(Math.round(maxV*s))}</div>`).join('')}
+      </div>
+      <div style="flex:1;overflow-x:auto">
+        <div style="display:flex;align-items:flex-end;gap:4px;height:${H+22}px;border-left:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1);padding:0 6px;min-width:${Math.max(200,items.length*44)}px">
+          ${items.map(item=>{const val=valFn(item);const h=maxV>0?Math.round((val/maxV)*H):0;const col=colFn(item);return`<div style="flex:1;min-width:36px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:${H}px">
+            <div style="font-size:6px;color:${col};font-weight:700;margin-bottom:2px;font-family:'JetBrains Mono',monospace;text-align:center">${val>0?'R$'+(val/1000).toFixed(0)+'k':''}</div>
+            <div style="width:65%;height:${h}px;min-height:${val>0?2:0}px;background:${col};border-radius:3px 3px 0 0"></div>
+          </div>`;}).join('')}
+        </div>
+        <div style="display:flex;gap:4px;padding:2px 6px;min-width:${Math.max(200,items.length*44)}px">
+          ${items.map(item=>`<div style="flex:1;min-width:36px;text-align:center;font-size:7px;color:rgba(255,255,255,.4)">${lblFn(item)}</div>`).join('')}
+        </div>
+      </div>
+    </div>`;
   }
-
-  // ── DATA PREP ──────────────────────────────────────────────────────────────
-  const allMonths = entries.map(([k])=>k);
-  const PR_IDS = PR.map(p=>p.id);
-  // Get selected months from state (default all)
-  const selMonths = el.dataset.selMonths ? JSON.parse(el.dataset.selMonths) : allMonths;
-  const selProds = el.dataset.selProds ? JSON.parse(el.dataset.selProds) : PR_IDS;
-  const filtEntries = entries.filter(([k])=>selMonths.includes(k));
-
-  // ── CALCS ──────────────────────────────────────────────────────────────────
-  const totalMeta = entries.reduce((s,[,snap])=>s+(snap.meta||0),0);
-  const totalCaixa = entries.reduce((s,[,snap])=>s+(snap.caixa||0),0);
-  const tickets = entries.map(([k,snap])=>({k,t:snap.stats?.ticket||0})).filter(x=>x.t>0);
-  const maxCaixa = Math.max(...entries.map(([,s])=>s.caixa||0),1);
-  const maxTicket = Math.max(...tickets.map(x=>x.t),1);
-  // Projeção anual: média mensal * 12
-  const mediaM = entries.length>0?totalCaixa/entries.length:0;
-  const projAnual = mediaM*12;
-  // Acumulado por produto
-  const accumProd = {};
-  PR.forEach(p=>{accumProd[p.id]={n:p.n,c:p.c,t:0,q:0};});
-  entries.forEach(([,snap])=>{(snap.stats?.bdProd||[]).forEach(p=>{if(accumProd[p.id||PR.find(x=>x.n===p.n)?.id]){const id=p.id||PR.find(x=>x.n===p.n)?.id;if(id){accumProd[id].t+=p.t||0;accumProd[id].q+=p.q||0;}}});});
-  // Fix: match by name if no id
-  entries.forEach(([,snap])=>{(snap.stats?.bdProd||[]).forEach(p=>{const pr=PR.find(x=>x.n===p.n);if(pr){accumProd[pr.id].t+=p.t||0;accumProd[pr.id].q+=p.q||0;}});});
-  const maxAccum = Math.max(...Object.values(accumProd).map(x=>x.t),1);
-
-  // ── MONTH LABELS ──────────────────────────────────────────────────────────
-  const mLbl = k=>new Date(k+'-02').toLocaleDateString('pt-BR',{month:'short',year:'2-digit'});
-
-  // ── HTML ──────────────────────────────────────────────────────────────────
   el.innerHTML=`
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-    <div style="font-weight:900;font-size:16px">📊 Métricas</div>
+    <div style="font-weight:900;font-size:15px">📊 Métricas</div>
     <button onclick="fecharMes()" style="padding:4px 10px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:6px;font-weight:700;font-size:9px">📦 Fechar Mês</button>
   </div>
-
-  <!-- KPIs GERAIS -->
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-    <div class="card" style="text-align:center;border-top:2px solid #38bdf8">
-      <div class="lbl" style="margin-bottom:4px">Meta Acumulada</div>
-      <div class="mono" style="font-weight:900;font-size:14px;color:#38bdf8">${R$(totalMeta)}</div>
-    </div>
-    <div class="card" style="text-align:center;border-top:2px solid #34d399">
-      <div class="lbl" style="margin-bottom:4px">Caixa Acumulado</div>
-      <div class="mono" style="font-weight:900;font-size:14px;color:#34d399">${R$(totalCaixa)}</div>
-      <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">${totalMeta>0?Math.round(totalCaixa/totalMeta*100):0}% das metas</div>
-    </div>
-    <div class="card" style="text-align:center;border-top:2px solid #a78bfa">
-      <div class="lbl" style="margin-bottom:4px">Projeção Anual</div>
-      <div class="mono" style="font-weight:900;font-size:14px;color:#a78bfa">${R$(projAnual)}</div>
-      <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">média de ${entries.length} meses</div>
-    </div>
+    <div class="card" style="text-align:center;border-top:2px solid #38bdf8"><div class="lbl" style="margin-bottom:3px">Meta Acumulada</div><div class="mono" style="font-weight:900;font-size:13px;color:#38bdf8">${R$(totalMeta)}</div></div>
+    <div class="card" style="text-align:center;border-top:2px solid #34d399"><div class="lbl" style="margin-bottom:3px">Caixa Acumulado</div><div class="mono" style="font-weight:900;font-size:13px;color:#34d399">${R$(totalCaixa)}</div><div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">${totalMeta>0?Math.round(totalCaixa/totalMeta*100):0}% das metas</div></div>
+    <div class="card" style="text-align:center;border-top:2px solid #a78bfa"><div class="lbl" style="margin-bottom:3px">Projeção Anual</div><div class="mono" style="font-weight:900;font-size:13px;color:#a78bfa">${R$(projAnual)}</div><div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">média ${entries.length} mês(es)</div></div>
   </div>
-
-  <!-- FILTRO DE MESES -->
   <div class="card" style="margin-bottom:14px">
-    <div class="lbl" style="margin-bottom:8px">🗓 Filtrar Meses</div>
-    <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px">
-      <button onclick="selAllMonths()" style="padding:3px 8px;border:1px solid rgba(56,189,248,.3);border-radius:20px;background:rgba(56,189,248,.1);color:#38bdf8;font-weight:700;font-size:8px">Todos</button>
-      ${allMonths.map(k=>`<button onclick="toggleMonth('${k}')" id="msel-${k}" style="padding:3px 8px;border:1.5px solid ${selMonths.includes(k)?'#38bdf8':'rgba(255,255,255,.1)'};border-radius:20px;background:${selMonths.includes(k)?'rgba(56,189,248,.15)':'transparent'};color:${selMonths.includes(k)?'#38bdf8':'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">${mLbl(k)}</button>`).join('')}
-    </div>
-    <div class="lbl" style="margin-bottom:6px">📦 Filtrar Produtos</div>
-    <div style="display:flex;gap:4px;flex-wrap:wrap">
-      ${PR.map(p=>`<button onclick="toggleProd('${p.id}')" id="psel-${p.id}" style="padding:3px 8px;border:1.5px solid ${selProds.includes(p.id)?p.c:'rgba(255,255,255,.1)'};border-radius:20px;background:${selProds.includes(p.id)?p.b:'transparent'};color:${selProds.includes(p.id)?p.c:'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">${p.n}</button>`).join('')}
-    </div>
-  </div>
-
-  <!-- GRÁFICO CRESCIMENTO MÊS A MÊS -->
-  <div class="card" style="margin-bottom:14px">
-    <div class="lbl" style="margin-bottom:12px">📈 Crescimento Mês a Mês</div>
-    <div style="display:flex;align-items:flex-end;gap:6px;height:100px;margin-bottom:10px;overflow-x:auto">
-      ${filtEntries.map(([k,snap],idx)=>{
-        const h=Math.round((snap.caixa/maxCaixa)*90);
-        const bat=snap.caixa>=(snap.meta||0);
-        const prev=idx>0?filtEntries[idx-1][1].caixa:null;
-        const growPct=prev&&prev>0?Math.round((snap.caixa-prev)/prev*100):null;
-        return`<div style="flex:1;min-width:40px;display:flex;flex-direction:column;align-items:center;gap:2px">
-          ${growPct!==null?`<div style="font-size:7px;color:${growPct>=0?'#34d399':'#f87171'};font-weight:700">${growPct>=0?'+':''}${growPct}%</div>`:'<div style="font-size:7px"> </div>'}
-          <div class="mono" style="font-size:6px;color:rgba(255,255,255,.5)">${R$(snap.caixa)}</div>
-          <div style="width:100%;height:${h}px;min-height:4px;background:${bat?'linear-gradient(180deg,#34d399,#16a34a)':'linear-gradient(180deg,#f87171,#b91c1c)'};border-radius:4px 4px 0 0;position:relative"></div>
-          <div style="font-size:7px;color:rgba(255,255,255,.38)">${mLbl(k)}</div>
-        </div>`;
-      }).join('')}
-    </div>
-    <div style="display:flex;gap:12px;font-size:8px;color:rgba(255,255,255,.38)"><span>🟢 Bateu meta</span><span>🔴 Não bateu</span></div>
-  </div>
-
-  <!-- GRÁFICO COMPARATIVO PRODUTOS (estilo Excel) -->
-  <div class="card" style="margin-bottom:14px">
-    <div class="lbl" style="margin-bottom:12px">📊 Comparativo por Produto</div>
-    ${filtEntries.length===0?'<div style="color:rgba(255,255,255,.38);font-size:11px;text-align:center;padding:16px">Selecione pelo menos um mês.</div>':''}
-    <div style="overflow-x:auto">
-      <div style="display:flex;align-items:flex-end;gap:3px;height:120px;min-width:${Math.max(300,filtEntries.length*80)}px;margin-bottom:10px">
-        ${filtEntries.map(([k,snap])=>{
-          const bd=snap.stats?.bdProd||[];
-          const mMax=Math.max(...selProds.map(pid=>{const p=bd.find(x=>x.n===PR.find(r=>r.id===pid)?.n||x.id===pid);return p?p.t:0;}),1);
-          return`<div style="flex:1;min-width:70px;display:flex;flex-direction:column;align-items:center;gap:2px">
-            <div style="width:100%;display:flex;align-items:flex-end;gap:2px;height:100px">
-              ${selProds.map(pid=>{
-                const pr=PR.find(r=>r.id===pid);
-                const p=bd.find(x=>x.n===pr?.n||x.id===pid);
-                const val=p?p.t:0;
-                const h=mMax>0?Math.round((val/mMax)*95):0;
-                return`<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100px">
-                  <div class="mono" style="font-size:5px;color:${pr?.c||'#fff'};margin-bottom:1px;text-align:center">${val>0?R$(val):''}</div>
-                  <div style="width:100%;height:${h}px;min-height:${val>0?3:0}px;background:${pr?.c||'#38bdf8'};border-radius:3px 3px 0 0;opacity:.85"></div>
-                </div>`;
-              }).join('')}
-            </div>
-            <div style="font-size:7px;color:rgba(255,255,255,.38);text-align:center">${mLbl(k)}</div>
-          </div>`;
-        }).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:5px">
+      <div class="lbl" style="margin-bottom:0">📈 Crescimento Mês a Mês</div>
+      <div style="display:flex;gap:3px;flex-wrap:wrap">
+        <button onclick="selAllHM()" style="padding:2px 7px;border:1px solid rgba(56,189,248,.3);border-radius:20px;background:rgba(56,189,248,.1);color:#38bdf8;font-weight:700;font-size:8px">Todos</button>
+        ${allM.map(k=>`<button onclick="togHM('${k}')" style="padding:2px 7px;border:1.5px solid ${selM.includes(k)?'#38bdf8':'rgba(255,255,255,.1)'};border-radius:20px;background:${selM.includes(k)?'rgba(56,189,248,.15)':'transparent'};color:${selM.includes(k)?'#38bdf8':'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">${mLbl(k)}</button>`).join('')}
       </div>
     </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-      ${selProds.map(pid=>{const pr=PR.find(r=>r.id===pid);return pr?`<span style="font-size:8px;color:${pr.c}">■ ${pr.n}</span>`:''}).join('')}
-    </div>
+    ${barchart(filtE,maxC,([,s])=>s.caixa>=(s.meta||0)?'#34d399':'#f87171',([k])=>mLbl(k),([,s])=>s.caixa||0)}
+    <div style="display:flex;gap:10px;font-size:8px;margin-top:6px"><span style="color:#34d399">■ Bateu</span><span style="color:#f87171">■ Não bateu</span></div>
   </div>
-
-  <!-- EVOLUÇÃO TICKET MÉDIO -->
   <div class="card" style="margin-bottom:14px">
-    <div class="lbl" style="margin-bottom:12px">🎫 Evolução do Ticket Médio</div>
-    <div style="display:flex;align-items:flex-end;gap:6px;height:80px;margin-bottom:8px;overflow-x:auto">
-      ${filtEntries.map(([k,snap])=>{
-        const t=snap.stats?.ticket||0;
-        const h=maxTicket>0?Math.round((t/maxTicket)*75):0;
-        return`<div style="flex:1;min-width:40px;display:flex;flex-direction:column;align-items:center;gap:2px">
-          <div class="mono" style="font-size:6px;color:#a78bfa">${t>0?R$(t):''}</div>
-          <div style="width:100%;height:${h}px;min-height:${t>0?3:0}px;background:linear-gradient(180deg,#a78bfa,#7c3aed);border-radius:3px 3px 0 0"></div>
-          <div style="font-size:7px;color:rgba(255,255,255,.38)">${mLbl(k)}</div>
-        </div>`;
-      }).join('')}
-    </div>
-    <div style="font-size:9px;color:rgba(255,255,255,.38)">Ticket médio de todos os clientes ativos por mês.</div>
+    <div class="lbl" style="margin-bottom:10px">🎫 Evolução do Ticket Médio</div>
+    ${barchart(filtE.filter(([,s])=>(s.stats?.ticket||0)>0),maxT,()=>'#a78bfa',([k])=>mLbl(k),([,s])=>s.stats?.ticket||0)}
   </div>
-
-  <!-- RECEITA ACUMULADA POR PRODUTO -->
   <div class="card" style="margin-bottom:14px">
-    <div class="lbl" style="margin-bottom:9px">💎 Receita Acumulada por Produto</div>
-    ${Object.values(accumProd).filter(x=>x.t>0).sort((a,b)=>b.t-a.t).map(p=>`
-      <div style="margin-bottom:8px">
-        <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-          <span style="font-size:11px;font-weight:700;color:${p.c}">${p.n}</span>
-          <span class="mono" style="font-weight:800;font-size:11px;color:${p.c}">${R$(p.t)}</span>
-        </div>
-        <div style="height:5px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden">
-          <div style="height:100%;width:${Math.round(p.t/maxAccum*100)}%;background:${p.c};border-radius:99px"></div>
-        </div>
-      </div>`).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:5px">
+      <div class="lbl" style="margin-bottom:0">📊 Breakdown por Produto</div>
+      <div style="display:flex;gap:3px;flex-wrap:wrap">
+        <button onclick="setSBD('todos')" style="padding:2px 7px;border:1.5px solid ${selBd==='todos'?'#38bdf8':'rgba(255,255,255,.1)'};border-radius:20px;background:${selBd==='todos'?'rgba(56,189,248,.15)':'transparent'};color:${selBd==='todos'?'#38bdf8':'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">Todos</button>
+        ${allM.map(k=>`<button onclick="setSBD('${k}')" style="padding:2px 7px;border:1.5px solid ${selBd===k?'#38bdf8':'rgba(255,255,255,.1)'};border-radius:20px;background:${selBd===k?'rgba(56,189,248,.15)':'transparent'};color:${selBd===k?'#38bdf8':'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">${mLbl(k)}</button>`).join('')}
+      </div>
+    </div>
+    ${bdItems.length===0?'<div style="color:rgba(255,255,255,.38);text-align:center;padding:16px;font-size:11px">Nenhum dado para o período.</div>':''}
+    ${bdItems.map(p=>`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:${p.c}"></div><span style="font-size:12px;font-weight:700;color:${p.c}">${p.n}</span><span style="font-size:9px;color:rgba(255,255,255,.38)">${p.q} cliente(s)</span></div><span class="mono" style="font-weight:800;font-size:13px;color:${p.c}">${R$(p.t)}</span></div><div style="height:6px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden"><div style="height:100%;width:${Math.round(p.t/bdMax*100)}%;background:${p.c};border-radius:99px"></div></div><div style="font-size:8px;color:rgba(255,255,255,.3);margin-top:2px">${Math.round(p.t/bdMax*100)}% do total</div></div>`).join('')}
+    ${bdItems.length>0?`<div style="padding-top:8px;border-top:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between"><span style="font-size:10px;color:rgba(255,255,255,.38)">Total</span><span class="mono" style="font-weight:800;font-size:12px">${R$(bdItems.reduce((s,p)=>s+p.t,0))}</span></div>`:''}
   </div>
-
-  <!-- MESES ARQUIVADOS -->
   <div class="lbl" style="margin-bottom:8px">🗂 Meses Arquivados</div>
   <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:9px">
-  ${entries.slice().reverse().map(([key,snap])=>{
-    const lb=new Date(key+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-    const st=snap.stats||{};
-    return`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-top:2px solid ${snap.caixa>=(snap.meta||0)?'#34d399':'#38bdf8'};border-radius:11px;padding:12px 13px">
-      <div class="lbl" style="margin-bottom:1px;text-transform:capitalize">${lb}</div>
-      <div style="font-weight:700;font-size:10px;margin-bottom:7px">Fechado em ${snap.date}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px">
-        <div style="background:rgba(255,255,255,.03);border-radius:6px;padding:6px 8px"><div class="lbl" style="margin-bottom:1px">Meta</div><div class="mono" style="font-weight:800;font-size:11px;color:#38bdf8">${R$(snap.meta)}</div></div>
-        <div style="background:rgba(52,211,153,.06);border-radius:6px;padding:6px 8px"><div class="lbl" style="color:#34d399;margin-bottom:1px">Caixa</div><div class="mono" style="font-weight:800;font-size:11px;color:#34d399">${R$(snap.caixa)}</div></div>
-      </div>
-      <div style="height:3px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${Math.min(100,snap.pct||0)}%;background:${(snap.pct||0)>=100?'#34d399':'#38bdf8'};border-radius:99px"></div></div>
-      <div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:6px">${snap.pct||0}% • ${(snap.clients||[]).length} clientes</div>
-      ${st.bestDay?`<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.15);border-radius:7px;padding:6px 9px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div class="lbl" style="margin-bottom:1px">🏆 Melhor Dia</div><div style="font-size:10px;color:#fbbf24;font-weight:700">${st.bestDay.data}</div></div><div class="mono" style="font-weight:800;font-size:12px;color:#fbbf24">${R$(st.bestDay.valor)}</div></div>`:''}
-      ${st.topProd?`<div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.15);border-radius:7px;padding:6px 9px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div class="lbl" style="margin-bottom:1px">🏆 Produto Top</div><div style="font-size:10px;color:${st.topProd.c||'#a78bfa'};font-weight:700">${st.topProd.n}</div></div><div class="mono" style="font-weight:800;font-size:12px;color:${st.topProd.c||'#a78bfa'}">${R$(st.topProd.t)}</div></div>`:''}
-      ${st.bdProd&&st.bdProd.length>0?`<div style="margin-bottom:6px"><div class="lbl" style="margin-bottom:5px">Breakdown</div>${st.bdProd.sort((a,b)=>b.t-a.t).map(p=>{const pr=PR.find(r=>r.n===p.n);const c=pr?.c||'#38bdf8';return`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:10px;font-weight:600;color:${c}">${p.n} <span style="font-size:8px;color:rgba(255,255,255,.38)">(${p.q})</span></span><span class="mono" style="font-weight:700;font-size:10px;color:${c}">${R$(p.t)}</span></div><div style="height:3px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${st.bdProd[0]?.t>0?Math.round(p.t/st.bdProd[0].t*100):0}%;background:${c};border-radius:99px"></div></div>`;}).join('')}</div>`:''}
-      ${st.ticket!==undefined?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(255,255,255,.025);border-radius:7px;padding:7px 8px;margin-bottom:6px">${[['Ticket',R$(st.ticket),'#38bdf8'],['Clientes',String(st.total||0),'#edf4ff'],['Novos',String(st.novos||0),'#34d399'],['Cancelados',String(st.cancelados||0),'#f87171']].map(([l,v,c])=>`<div><div class="lbl" style="margin-bottom:1px">${l}</div><div style="font-weight:700;font-size:10px;color:${c}">${v}</div></div>`).join('')}</div>`:''}
-      <button onclick="exportSnap('${key}')" style="width:100%;padding:4px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.15);color:#34d399;border-radius:6px;font-weight:600;font-size:8px">📤 Exportar</button>
-    </div>`;
-  }).join('')}
+  ${[...entries].reverse().map(([key,snap])=>{const lb=new Date(key+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});const st=snap.stats||{};const bdP=st.bdProd||[];const bdPMax=bdP.length>0?Math.max(...bdP.map(x=>x.t||0)):1;return`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-top:2px solid ${snap.caixa>=(snap.meta||0)?'#34d399':'#38bdf8'};border-radius:11px;padding:12px 13px"><div class="lbl" style="margin-bottom:1px;text-transform:capitalize">${lb}</div><div style="font-weight:700;font-size:10px;margin-bottom:7px">Fechado em ${snap.date}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px"><div style="background:rgba(255,255,255,.03);border-radius:6px;padding:6px 8px"><div class="lbl" style="margin-bottom:1px">Meta</div><div class="mono" style="font-weight:800;font-size:11px;color:#38bdf8">${R$(snap.meta)}</div></div><div style="background:rgba(52,211,153,.06);border-radius:6px;padding:6px 8px"><div class="lbl" style="color:#34d399;margin-bottom:1px">Caixa</div><div class="mono" style="font-weight:800;font-size:11px;color:#34d399">${R$(snap.caixa)}</div></div></div><div style="height:3px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${Math.min(100,snap.pct||0)}%;background:${(snap.pct||0)>=100?'#34d399':'#38bdf8'};border-radius:99px"></div></div><div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:6px">${snap.pct||0}% • ${(snap.clients||[]).length} clientes</div>${st.bestDay?`<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.15);border-radius:7px;padding:6px 9px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div class="lbl" style="margin-bottom:1px">🏆 Melhor Dia</div><div style="font-size:10px;color:#fbbf24;font-weight:700">${st.bestDay.data}</div></div><div class="mono" style="font-weight:800;font-size:12px;color:#fbbf24">${R$(st.bestDay.valor)}</div></div>`:''} ${bdP.length>0?`<div style="margin-bottom:6px"><div class="lbl" style="margin-bottom:5px">Breakdown</div>${bdP.sort((a,b)=>b.t-a.t).map(p=>{const pr=PR.find(r=>r.n===p.n);const c=pr?.c||'#38bdf8';return`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><span style="font-size:10px;font-weight:700;color:${c}">${p.n} <span style="font-size:8px;color:rgba(255,255,255,.38)">(${p.q})</span></span><span class="mono" style="font-weight:700;font-size:10px;color:${c}">${R$(p.t)}</span></div><div style="height:4px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden"><div style="height:100%;width:${bdPMax>0?Math.round(p.t/bdPMax*100):0}%;background:${c};border-radius:99px"></div></div></div>`;}).join('')}</div>`:''} ${st.ticket!==undefined?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(255,255,255,.025);border-radius:7px;padding:7px 8px;margin-bottom:6px">${[['Ticket',R$(st.ticket),'#38bdf8'],['Clientes',String(st.total||0),'#edf4ff'],['Novos',String(st.novos||0),'#34d399'],['Cancelados',String(st.cancelados||0),'#f87171']].map(([l,v,c])=>`<div><div class="lbl" style="margin-bottom:1px">${l}</div><div style="font-weight:700;font-size:10px;color:${c}">${v}</div></div>`).join('')}</div>`:''}<button onclick="exportSnap('${key}')" style="width:100%;padding:4px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.15);color:#34d399;border-radius:6px;font-weight:600;font-size:8px">📤 Exportar</button></div>`;}).join('')}
   </div>`;
+  el.dataset.selM=JSON.stringify(selM);
+  el.dataset.selBd=selBd;
 }
-
-function selAllMonths(){
-  const el=document.getElementById('view-historico');
-  const allM=Object.keys(D.history||{}).sort((a,b)=>a.localeCompare(b));
-  el.dataset.selMonths=JSON.stringify(allM);
-  renderHistorico();
-}
-function toggleMonth(k){
-  const el=document.getElementById('view-historico');
-  const allM=Object.keys(D.history||{}).sort((a,b)=>a.localeCompare(b));
-  let sel=el.dataset.selMonths?JSON.parse(el.dataset.selMonths):allM;
-  if(sel.includes(k)) sel=sel.filter(x=>x!==k); else sel=[...sel,k];
-  if(!sel.length) sel=allM;
-  el.dataset.selMonths=JSON.stringify(sel);
-  renderHistorico();
-}
-function toggleProd(pid){
-  const el=document.getElementById('view-historico');
-  let sel=el.dataset.selProds?JSON.parse(el.dataset.selProds):PR.map(p=>p.id);
-  if(sel.includes(pid)) sel=sel.filter(x=>x!==pid); else sel=[...sel,pid];
-  if(!sel.length) sel=PR.map(p=>p.id);
-  el.dataset.selProds=JSON.stringify(sel);
-  renderHistorico();
-}
+function selAllHM(){const el=document.getElementById('view-historico');el.dataset.selM=JSON.stringify(Object.keys(D.history||{}).sort());renderHistorico();}
+function togHM(k){const el=document.getElementById('view-historico');const allM=Object.keys(D.history||{}).sort();let sel=el.dataset.selM?JSON.parse(el.dataset.selM):allM;sel=sel.includes(k)?sel.filter(x=>x!==k):[...sel,k];if(!sel.length)sel=allM;el.dataset.selM=JSON.stringify(sel);renderHistorico();}
+function setSBD(mes){const el=document.getElementById('view-historico');el.dataset.selBd=mes;renderHistorico();}
 
 
 function fecharMes() {
