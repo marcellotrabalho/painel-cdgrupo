@@ -868,6 +868,135 @@ function togHM(k){const el=document.getElementById('view-historico');const allM=
 function setSBD(mes){const el=document.getElementById('view-historico');el.dataset.selBd=mes;renderHistorico();}
 
 
+function sinalEntrou(idx) {
+  const s = (D.sinais||[])[idx];
+  if(!s) return;
+  // Abre modal perguntando quanto pagou a mais e forma de pagamento
+  openModal('sinalEntrou', {idx, sinal:s});
+}
+
+function confirmarSinalEntrou(idx, extraValor, payMethod, diaCobranca) {
+  const s = (D.sinais||[])[idx];
+  if(!s) return;
+  const pagamentos = [{valor:s.valorSinal, data:dh(), mes:ms()+' (sinal)'}];
+  if(extraValor>0) pagamentos.push({valor:extraValor, data:dh(), mes:ms()});
+  // Remove o extra do sinal do caixa pois vai virar pagamento do cliente
+  const extraIdx = D.extras.findIndex(e=>e.isSinal && e.sinalNome===s.nome);
+  if(extraIdx>=0) D.extras.splice(extraIdx,1);
+  D.clients.push({nome:s.nome,insta:s.insta||'',segInicio:s.segInicio||0,productId:s.productId,productName:s.productName,fullPrice:s.fullPrice,payMethod:payMethod||'pix',diaCobranca:payMethod==='boleto'?diaCobranca:null,pagamentos,dataInicio:dh(),mesesContrato:0,status:'ativo',type:'novo',temSinal:true});
+  D.sinais.splice(idx,1);
+  D.ativos++;
+  closeModal(); save(); toast('✅ Entrou! +1 no ecossistema.');
+}
+
+function sinalCorreu(idx) {
+  const s = (D.sinais||[])[idx];
+  if(!s) return;
+  // Remove o extra do sinal que entrou no caixa
+  const extraIdx = D.extras.findIndex(e=>e.isSinal && e.sinalNome===s.nome);
+  if(extraIdx>=0) D.extras.splice(extraIdx,1);
+  D.sinais.splice(idx,1);
+  // Pergunta se pediu dinheiro de volta
+  openModal('sinalCorreu', {nome:s.nome, valor:s.valorSinal});
+}
+
+function setStatus(i, st) {
+  D.clients[i].status = st;
+  save();
+}
+
+function delExtra(i) {
+  D.extras.splice(i,1);
+  save(); toast('✅ Removido.');
+}
+
+function confirmDel(i, nome, isExtra) {
+  document.getElementById('confirm-name').textContent = nome;
+  document.getElementById('confirm-ok').onclick = () => {
+    if(isExtra){ D.extras.splice(i,1); }
+    else { D.clients.splice(i,1); D.ativos=Math.max(0,D.ativos-1); }
+    closeConfirm(); save(); toast('✅ Removido.');
+  };
+  document.getElementById('confirm-overlay').classList.add('open');
+}
+function closeConfirm(){ document.getElementById('confirm-overlay').classList.remove('open'); }
+
+function devolverSinal() {
+  // Sinal já foi removido do caixa em sinalCorreu, não precisa fazer nada a mais
+  closeModal(); save(); toast('❌ Correu. Dinheiro devolvido.','#b91c1c');
+}
+
+
+
+function bP(idx,v){
+  D.clients[idx].pagamentos=[...(D.clients[idx].pagamentos||[]),{valor:v,data:dh(),mes:ms()}];
+  save(); toast('✅ Boleto pago!');
+}
+
+
+
+function getSemanaKey() {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day===0?-6:1);
+  const mon = new Date(now); mon.setDate(diff);
+  return `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+}
+
+function getSemanaLabel(key) {
+  const start = new Date(key+'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate()+6);
+  return `${start.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} a ${end.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`;
+}
+
+function checkDashboardSemanal() {
+  const now = new Date();
+  if(now.getDay()!==1) return;
+  const key = getSemanaKey();
+  if(D.semanas && D.semanas[key]) return;
+  const lastMon = new Date(now); lastMon.setDate(lastMon.getDate()-7);
+  const lastSun = new Date(now); lastSun.setDate(lastSun.getDate()-1);
+  const inRange = dateStr => {
+    if(!dateStr) return false;
+    const [d,m,y] = dateStr.split('/').map(Number);
+    const dt = new Date(y,m-1,d);
+    return dt>=lastMon && dt<=lastSun;
+  };
+  const entradas = D.clients.filter(c=>c.type!=='antigo')
+    .reduce((s,c)=>s+(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior&&!p.historico).reduce((a,p)=>a+p.valor,0),0)
+    + D.extras.filter(e=>inRange(e.data)).reduce((s,e)=>s+(e.valor||0),0);
+  const novos = D.clients.filter(c=>inRange(c.dataInicio)&&c.type==='novo').length;
+  const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tpMes(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
+  const Y=now.getFullYear(),M=now.getMonth(),Dd=now.getDate();
+  const mExp_ = wdT(Y,M)>0?(D.meta/wdT(Y,M))*wdA(Y,M,Dd):0;
+  const ritmo_ = mExp_>0?Math.round(caixa/mExp_*100):0;
+  const pbd={};
+  D.clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior).forEach(p=>{pbd[p.data]=(pbd[p.data]||0)+p.valor;}));
+  D.extras.filter(e=>inRange(e.data)).forEach(e=>{pbd[e.data]=(pbd[e.data]||0)+e.valor;});
+  const bestDay = Object.entries(pbd).sort((a,b)=>b[1]-a[1])[0]||null;
+  const resumo = {key,label:getSemanaLabel(key),entradas,novos,ritmo:ritmo_,bestDay:bestDay?{data:bestDay[0],valor:bestDay[1]}:null,date:dh()};
+  if(!D.semanas) D.semanas={};
+  D.semanas[key] = resumo;
+  save();
+  showResumoSemanal(resumo);
+}
+
+function showResumoSemanal(resumo) {
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `
+    <div style="font-weight:900;font-size:19px;margin-bottom:4px">📊 Resumo Semanal</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:14px">${resumo.label||''}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:11px"><div class="lbl" style="margin-bottom:3px">Entrou na semana</div><div class="mono" style="font-weight:900;font-size:18px;color:#34d399">${R$(resumo.entradas)}</div></div>
+      <div style="background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:11px"><div class="lbl" style="margin-bottom:3px">Ritmo da Meta</div><div class="mono" style="font-weight:900;font-size:18px;color:${(resumo.ritmo||0)>=100?'#34d399':(resumo.ritmo||0)>=75?'#38bdf8':'#f87171'}">${resumo.ritmo||0}%</div></div>
+      <div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:11px"><div class="lbl" style="margin-bottom:3px">Novos Clientes</div><div class="mono" style="font-weight:900;font-size:18px;color:#a78bfa">${resumo.novos||0}</div></div>
+      <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:11px"><div class="lbl" style="margin-bottom:3px">Melhor Dia</div><div style="font-weight:700;font-size:11px;color:#fbbf24">${resumo.bestDay?resumo.bestDay.data+' — '+R$(resumo.bestDay.valor):'—'}</div></div>
+    </div>
+    <div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:12px;text-align:center">Salvo na aba 📊 Semanas para análise posterior</div>
+    <button onclick="closeModal()" style="width:100%;padding:11px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">✅ Entendido</button>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
 function fecharMes() {
   const now = new Date(), Y=now.getFullYear(), M=now.getMonth();
   const caixa = D.clients.reduce((s,c)=>s+tpMes(c),0) + D.extras.reduce((s,e)=>s+(e.valor||0),0);
