@@ -428,6 +428,13 @@ function renderAlerts() {
   if(emAtraso.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#92400e,#b45309)">⚠️ Em atraso: ${emAtraso.map(c=>esc(c.nome)).join(', ')}</div>`;
   if(pVencer.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#4c1d95,#5b21b6)">🔄 Renovação próxima: ${pVencer.map(c=>esc(c.nome)).join(', ')}</div>`;
   if(alertaRitmo!==null) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#7f1d1d,#991b1b)">🔴 Ritmo da meta em ${alertaRitmo}% — segunda metade do mês!</div>`;
+  // Lembrete de fechar mês
+  if(localStorage.getItem('cdg_lembrete_fechar')==='1') {
+    html += `<div class="alert-bar" style="background:linear-gradient(90deg,#065f46,#047857);justify-content:space-between">
+      <span>📦 Pronto para fechar o mês?</span>
+      <button onclick="promptFecharMes()" style="padding:3px 10px;background:#fff;color:#065f46;border:none;border-radius:5px;font-weight:700;font-size:10px">Fechar agora</button>
+    </div>`;
+  }
   document.getElementById('alerts').innerHTML = html;
 }
 
@@ -628,7 +635,7 @@ function renderPainel() {
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
       <button onclick="openSyncModal()" style="padding:5px 10px;background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);color:#38bdf8;border-radius:6px;font-weight:700;font-size:9px">🔗 Sync/Backup</button>
-      <button onclick="fecharMes()" style="padding:5px 11px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:6px;font-weight:700;font-size:9px">📦 Fechar Mês</button>
+      
     </div>
   `;
 }
@@ -822,7 +829,7 @@ function renderHistorico() {
   el.innerHTML=`
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
     <div style="font-weight:900;font-size:15px">📊 Métricas</div>
-    <button onclick="fecharMes()" style="padding:4px 10px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:6px;font-weight:700;font-size:9px">📦 Fechar Mês</button>
+    
   </div>
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
     <div class="card" style="text-align:center;border-top:2px solid #38bdf8"><div class="lbl" style="margin-bottom:3px">Meta Acumulada</div><div class="mono" style="font-weight:900;font-size:13px;color:#38bdf8">${R$(totalMeta)}</div></div>
@@ -951,7 +958,7 @@ function getSemanaLabel(key) {
 
 function checkDashboardSemanal() {
   const now = new Date();
-  if(now.getDay()!==1) return;
+  if(now.getDay()!==1) return; // Só segunda-feira
   const key = getSemanaKey();
   if(D.semanas && D.semanas[key]) return;
   const lastMon = new Date(now); lastMon.setDate(lastMon.getDate()-7);
@@ -962,114 +969,135 @@ function checkDashboardSemanal() {
     const dt = new Date(y,m-1,d);
     return dt>=lastMon && dt<=lastSun;
   };
+  // Entradas da semana
   const entradas = D.clients.filter(c=>c.type!=='antigo')
     .reduce((s,c)=>s+(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior&&!p.historico).reduce((a,p)=>a+p.valor,0),0)
     + D.extras.filter(e=>inRange(e.data)).reduce((s,e)=>s+(e.valor||0),0);
   const novos = D.clients.filter(c=>inRange(c.dataInicio)&&c.type==='novo').length;
-  const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tpMes(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
-  const Y=now.getFullYear(),M=now.getMonth(),Dd=now.getDate();
-  const mExp_ = wdT(Y,M)>0?(D.meta/wdT(Y,M))*wdA(Y,M,Dd):0;
-  const ritmo_ = mExp_>0?Math.round(caixa/mExp_*100):0;
+  // Ritmo: quantos dias úteis na semana vs meta diária
+  let diasUteisSemana=0, diasUteisPassados=0;
+  for(let d=new Date(lastMon); d<=lastSun; d.setDate(d.getDate()+1)) {
+    if(isU(d.getFullYear(),d.getMonth(),d.getDate())) {
+      diasUteisSemana++;
+      if(d<=now) diasUteisPassados++;
+    }
+  }
+  const metaSemana = D.meta>0&&wdT(now.getFullYear(),now.getMonth())>0 ? (D.meta/wdT(now.getFullYear(),now.getMonth()))*diasUteisSemana : 0;
+  const ritmoSemana = metaSemana>0 ? Math.round(entradas/metaSemana*100) : (entradas>0?100:0);
+  // Produto mais vendido na semana
+  const prodSemana = {};
+  PR.forEach(p=>{prodSemana[p.id]={n:p.n,c:p.c,t:0,q:0};});
+  D.clients.filter(c=>c.type!=='antigo').forEach(c=>{
+    const v=(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior&&!p.historico).reduce((a,p)=>a+p.valor,0);
+    if(v>0&&prodSemana[c.productId]){prodSemana[c.productId].t+=v;prodSemana[c.productId].q++;}
+  });
+  const topProdSemana = Object.values(prodSemana).filter(x=>x.t>0).sort((a,b)=>b.t-a.t)[0]||null;
+  // Melhor dia da semana
   const pbd={};
   D.clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior).forEach(p=>{pbd[p.data]=(pbd[p.data]||0)+p.valor;}));
   D.extras.filter(e=>inRange(e.data)).forEach(e=>{pbd[e.data]=(pbd[e.data]||0)+e.valor;});
   const bestDay = Object.entries(pbd).sort((a,b)=>b[1]-a[1])[0]||null;
-  const resumo = {key,label:getSemanaLabel(key),entradas,novos,ritmo:ritmo_,bestDay:bestDay?{data:bestDay[0],valor:bestDay[1]}:null,date:dh()};
+  const resumo = {
+    key, label:getSemanaLabel(key), entradas, novos, ritmo:ritmoSemana,
+    metaSemana, diasUteisSemana, topProd:topProdSemana,
+    bdProd:Object.values(prodSemana).filter(x=>x.t>0),
+    bestDay:bestDay?{data:bestDay[0],valor:bestDay[1]}:null,
+    date:dh()
+  };
   if(!D.semanas) D.semanas={};
   D.semanas[key] = resumo;
   save();
   showResumoSemanal(resumo);
 }
 
+
 function showResumoSemanal(resumo) {
   const box = document.getElementById('modal-box');
+  const bdHtml = (resumo.bdProd||[]).length>0 ? `
+    <div style="margin-bottom:12px">
+      <div class="lbl" style="margin-bottom:8px">Breakdown da Semana</div>
+      ${(resumo.bdProd||[]).sort((a,b)=>b.t-a.t).map(p=>{
+        const maxT=resumo.bdProd[0]?.t||1;
+        return`<div style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:2px">
+            <span style="font-size:11px;font-weight:700;color:${p.c}">${p.n} <span style="font-size:9px;color:rgba(255,255,255,.38)">(${p.q})</span></span>
+            <span class="mono" style="font-weight:700;font-size:11px;color:${p.c}">${R$(p.t)}</span>
+          </div>
+          <div style="height:4px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden">
+            <div style="height:100%;width:${Math.round(p.t/maxT*100)}%;background:${p.c};border-radius:99px"></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>` : '';
+  const ritmoC = (resumo.ritmo||0)>=100?'#34d399':(resumo.ritmo||0)>=75?'#38bdf8':'#f87171';
   box.innerHTML = `
-    <div style="font-weight:900;font-size:19px;margin-bottom:4px">📊 Resumo Semanal</div>
-    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:14px">${resumo.label||''}</div>
+    <div style="font-weight:900;font-size:19px;margin-bottom:2px">📊 Resumo Semanal</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:14px">${resumo.label||resumo.key}</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:11px"><div class="lbl" style="margin-bottom:3px">Entrou na semana</div><div class="mono" style="font-weight:900;font-size:18px;color:#34d399">${R$(resumo.entradas)}</div></div>
-      <div style="background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:11px"><div class="lbl" style="margin-bottom:3px">Ritmo da Meta</div><div class="mono" style="font-weight:900;font-size:18px;color:${(resumo.ritmo||0)>=100?'#34d399':(resumo.ritmo||0)>=75?'#38bdf8':'#f87171'}">${resumo.ritmo||0}%</div></div>
-      <div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:11px"><div class="lbl" style="margin-bottom:3px">Novos Clientes</div><div class="mono" style="font-weight:900;font-size:18px;color:#a78bfa">${resumo.novos||0}</div></div>
-      <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:11px"><div class="lbl" style="margin-bottom:3px">Melhor Dia</div><div style="font-weight:700;font-size:11px;color:#fbbf24">${resumo.bestDay?resumo.bestDay.data+' — '+R$(resumo.bestDay.valor):'—'}</div></div>
+      <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Entrou na semana</div>
+        <div class="mono" style="font-weight:900;font-size:16px;color:#34d399">${R$(resumo.entradas)}</div>
+        ${resumo.metaSemana>0?`<div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">Meta: ${R$(resumo.metaSemana)}</div>`:''}
+      </div>
+      <div style="background:${ritmoC}15;border:1px solid ${ritmoC}44;border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Ritmo da Semana</div>
+        <div class="mono" style="font-weight:900;font-size:16px;color:${ritmoC}">${resumo.ritmo||0}%</div>
+        <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">${(resumo.ritmo||0)>=100?'✅ Acima da meta':(resumo.ritmo||0)>=75?'🔵 No ritmo':'🔴 Abaixo'}</div>
+      </div>
+      <div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Novos Clientes</div>
+        <div class="mono" style="font-weight:900;font-size:16px;color:#a78bfa">${resumo.novos||0}</div>
+      </div>
+      <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Melhor Dia</div>
+        <div style="font-weight:700;font-size:10px;color:#fbbf24">${resumo.bestDay?resumo.bestDay.data:'—'}</div>
+        ${resumo.bestDay?`<div class="mono" style="font-size:10px;color:#fbbf24">${R$(resumo.bestDay.valor)}</div>`:''}
+      </div>
     </div>
+    ${bdHtml}
     <div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:12px;text-align:center">Salvo na aba 📊 Semanas para análise posterior</div>
     <button onclick="closeModal()" style="width:100%;padding:11px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">✅ Entendido</button>`;
   document.getElementById('modal-overlay').classList.add('open');
 }
 
-function fecharMes() {
-  const now = new Date(), Y=now.getFullYear(), M=now.getMonth();
-  const caixa = D.clients.reduce((s,c)=>s+tpMes(c),0) + D.extras.reduce((s,e)=>s+(e.valor||0),0);
-  const pbd_={};D.clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>!p.mesAnterior&&!p.historico).forEach(p=>{pbd_[p.data]=(pbd_[p.data]||0)+p.valor;}));D.extras.forEach(e=>{pbd_[e.data]=(pbd_[e.data]||0)+e.valor;});const bestDay=Object.entries(pbd_).sort((a,b)=>b[1]-a[1])[0]||null;
-  const pct = D.meta>0?Math.min(100,Math.round(caixa/D.meta*100)):0;
-  const key = mk();
-  const atM = D.clients.filter(c=>c.status!=='cancelado'&&c.status!=='concluido');
-  // Breakdown por produto
-  const bdProd = {};
-  PR.forEach(p=>{bdProd[p.id]={n:p.n,c:p.c,t:0,q:0};});
-  D.clients.forEach(c=>{
-    const v=tpMes(c);
-    if(bdProd[c.productId]){bdProd[c.productId].t+=v;bdProd[c.productId].q++;}
-  });
-  const topProd = Object.values(bdProd).sort((a,b)=>b.t-a.t).filter(x=>x.t>0)[0]||null;
-  const sinaisConv = D.clients.filter(c=>c.temSinal).length;
-  // Salva histórico
-  D.history[key] = {
-    clients:[...D.clients],extras:[...D.extras],meta:D.meta,caixa,pct,date:dh(),
-    stats:{
-      ticket:atM.length>0?Math.round(caixa/atM.length):0,
-      total:atM.length,
+
+function promptFecharMes() {
+  const caixa=D.clients.reduce((s,c)=>s+tpMes(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
+  const box=document.getElementById('modal-box');
+  box.innerHTML=`<div style="text-align:center;margin-bottom:14px"><div style="font-size:36px">📦</div><div style="font-weight:900;font-size:19px;margin-top:6px">Finalizar o Mês?</div><div style="font-size:11px;color:rgba(255,255,255,.38);margin-top:4px">${ms()} — ${R$(caixa)} no caixa</div></div><div style="display:flex;flex-direction:column;gap:8px"><button onclick="fecharMes();closeModal()" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;font-weight:700;font-size:14px">✅ Sim, fechar agora</button><button onclick="ativarLembreteFechar();closeModal()" style="width:100%;padding:12px;border:1.5px solid rgba(56,189,248,.3);border-radius:10px;background:rgba(56,189,248,.07);color:#38bdf8;font-weight:700;font-size:13px">⏰ Daqui a pouco</button><button onclick="closeModal()" style="width:100%;padding:10px;border:1.5px solid rgba(255,255,255,.1);border-radius:10px;background:none;color:rgba(255,255,255,.38);font-weight:600;font-size:13px">Cancelar</button></div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function ativarLembreteFechar(){localStorage.setItem('cdg_lembrete_fechar','1');renderAll();toast('⏰ Lembrete ativado!');}
+function checkFimMes(){const now=new Date();const lastDay=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();if(now.getDate()===lastDay){const jaAvisou=localStorage.getItem('cdg_avisou_'+mk());if(!jaAvisou&&(D.clients.length>0||D.extras.length>0)){localStorage.setItem('cdg_avisou_'+mk(),'1');setTimeout(promptFecharMes,2000);}}}
+function fecharMes(){
+  const now=new Date(),Y=now.getFullYear(),M=now.getMonth();
+  const caixa=D.clients.reduce((s,c)=>s+tpMes(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
+  const pct=D.meta>0?Math.min(100,Math.round(caixa/D.meta*100)):0;
+  const key=mk();
+  const atM=D.clients.filter(c=>c.status!=='cancelado'&&c.status!=='concluido');
+  const pbd_={};D.clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>!p.mesAnterior&&!p.historico).forEach(p=>{pbd_[p.data]=(pbd_[p.data]||0)+p.valor;}));D.extras.forEach(e=>{pbd_[e.data]=(pbd_[e.data]||0)+e.valor;});
+  const bestDay=Object.entries(pbd_).sort((a,b)=>b[1]-a[1])[0]||null;
+  const bdProd={};PR.forEach(p=>{bdProd[p.id]={n:p.n,c:p.c,t:0,q:0};});
+  D.clients.filter(c=>c.type!=='antigo').forEach(c=>{const v=tpMes(c);if(bdProd[c.productId]){bdProd[c.productId].t+=v;bdProd[c.productId].q++;}});
+  const topProd=Object.values(bdProd).filter(x=>x.t>0).sort((a,b)=>b.t-a.t)[0]||null;
+  const sinaisConv=D.clients.filter(c=>c.temSinal).length;
+  D.history[key]={clients:[...D.clients],extras:[...D.extras],meta:D.meta,caixa,pct,date:dh(),
+    stats:{ticket:atM.length>0?Math.round(caixa/atM.length):0,total:atM.length,
       novos:D.clients.filter(c=>c.type==='novo').length,
       cancelados:D.clients.filter(c=>c.status==='cancelado').length,
       topProd:topProd?{n:topProd.n,c:topProd.c,t:topProd.t,q:topProd.q}:null,
       bdProd:Object.values(bdProd).filter(x=>x.t>0),
-      sinaisConv,pct,
-      bestDay:bestDay?{data:bestDay[0],valor:bestDay[1]}:null
-    }
-  };
-  // ✅ CLIENTES FICAM — marca pagamentos do mês como anteriores
-  D.clients = D.clients.map(c=>({
-    ...c,
-    pagamentos:(c.pagamentos||[]).map(p=>({...p, mesAnterior:true}))
-  }));
-  // Zera caixa do mês: extras, sinais e meta
-  D.extras = [];
-  D.sinais = [];
-  D.meta = 0;
+      sinaisConv,pct,bestDay:bestDay?{data:bestDay[0],valor:bestDay[1]}:null}};
+  D.clients=D.clients.map(c=>({...c,pagamentos:(c.pagamentos||[]).map(p=>({...p,mesAnterior:true}))}));
+  D.extras=[];D.sinais=[];D.meta=0;
+  localStorage.removeItem('cdg_lembrete_fechar');
   save();
-  // Mostra resumo
-  const box = document.getElementById('modal-box');
-  box.innerHTML = `
-    <div style="text-align:center;margin-bottom:14px">
-      <div style="font-size:36px">${pct>=100?'🏆':'📦'}</div>
-      <div style="font-weight:900;font-size:19px;margin-top:4px">Mês Fechado!</div>
-      <div style="font-size:11px;color:rgba(255,255,255,.38);margin-top:2px">${ms()}</div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px">
-      <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:11px;text-align:center">
-        <div class="lbl" style="margin-bottom:3px">Caixa Final</div>
-        <div class="mono" style="font-weight:900;font-size:16px;color:#34d399">${R$(caixa)}</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">${pct}% da meta</div>
-      </div>
-      <div style="background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:11px;text-align:center">
-        <div class="lbl" style="margin-bottom:3px">Clientes</div>
-        <div class="mono" style="font-weight:900;font-size:16px;color:#38bdf8">${atM.length}</div>
-        <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">ativos</div>
-      </div>
-    </div>
-    ${topProd?`<div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:11px;margin-bottom:12px">
-      <div class="lbl" style="margin-bottom:5px">🏆 Produto Destaque</div>
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div><div style="font-weight:800;font-size:14px;color:${topProd.c||'#a78bfa'}">${topProd.n}</div><div style="font-size:10px;color:rgba(255,255,255,.38)">${topProd.q} cliente(s)</div></div>
-        <div class="mono" style="font-weight:900;font-size:16px;color:${topProd.c||'#a78bfa'}">${R$(topProd.t)}</div>
-      </div>
-    </div>`:''}
-    <div style="font-size:10px;color:rgba(56,189,248,.7);background:rgba(56,189,248,.07);border-radius:8px;padding:9px;margin-bottom:12px;text-align:center">
-      ✅ Clientes mantidos na aba Clientes.<br>Registre novos pagamentos para o mês que começa!
-    </div>
-    <button onclick="closeModal()" style="width:100%;padding:11px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">🎉 Começar novo mês!</button>`;
+  const box=document.getElementById('modal-box');
+  const tp_=topProd;
+  box.innerHTML=`<div style="text-align:center;margin-bottom:14px"><div style="font-size:36px">${pct>=100?'🏆':'📦'}</div><div style="font-weight:900;font-size:19px;margin-top:4px">Mês Fechado!</div><div style="font-size:11px;color:rgba(255,255,255,.38);margin-top:2px">${ms()}</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px"><div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:11px;text-align:center"><div class="lbl" style="margin-bottom:3px">Caixa Final</div><div class="mono" style="font-weight:900;font-size:16px;color:#34d399">${R$(caixa)}</div><div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">${pct}% da meta</div></div><div style="background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:11px;text-align:center"><div class="lbl" style="margin-bottom:3px">Clientes</div><div class="mono" style="font-weight:900;font-size:16px;color:#38bdf8">${atM.length}</div></div></div>${tp_?`<div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:11px;margin-bottom:12px"><div class="lbl" style="margin-bottom:5px">🏆 Produto Destaque</div><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:800;font-size:14px;color:${tp_.c||'#a78bfa'}">${tp_.n}</div><div style="font-size:10px;color:rgba(255,255,255,.38)">${tp_.q} cliente(s)</div></div><div class="mono" style="font-weight:900;font-size:16px;color:${tp_.c||'#a78bfa'}">${R$(tp_.t)}</div></div></div>`:''}<div style="font-size:10px;color:rgba(56,189,248,.7);background:rgba(56,189,248,.07);border-radius:8px;padding:9px;margin-bottom:12px;text-align:center">✅ Clientes mantidos. Registre novos pagamentos!</div><button onclick="closeModal()" style="width:100%;padding:11px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">🎉 Começar novo mês!</button>`;
   document.getElementById('modal-overlay').classList.add('open');
 }
+function exportSnap(key){const snap=D.history[key];if(!snap)return;const lb=new Date(key+'-01').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});const txt=[`=== CD GRUPO — ${lb.toUpperCase()} ===`,`Fechado: ${snap.date}`,'',`Caixa: ${R$(snap.caixa)}`,`Meta: ${R$(snap.meta)}`,`Atingiu: ${snap.pct}%`,...(snap.stats?['',`Ticket: ${R$(snap.stats.ticket)}`,`Clientes: ${snap.stats.total}`]:[])].join('\n');navigator.clipboard.writeText(txt).then(()=>toast('📋 Copiado!')).catch(()=>alert(txt));}
 
 function renderSemanas() {
   const el = document.getElementById('view-semanas');
@@ -1078,7 +1106,47 @@ function renderSemanas() {
   entries.forEach(([key,s])=>{const mk_=key.slice(0,7);if(!byMonth[mk_])byMonth[mk_]=[];byMonth[mk_].push([key,s]);});
   const months = Object.keys(byMonth).sort((a,b)=>b.localeCompare(a));
   const openMonth = el.dataset.openMonth||months[0]||'';
-  el.innerHTML=`<div style="font-weight:800;font-size:14px;margin-bottom:10px">📊 Dashboard Semanal</div>${months.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:28px;font-size:12px;line-height:1.8">Nenhum resumo ainda.<br>Aparece toda segunda-feira automaticamente.</div>':''}<div style="display:flex;flex-direction:column;gap:6px">${months.map(mkey=>{const isOpen=mkey===openMonth;const label=new Date(mkey+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});const semanas=byMonth[mkey];const totalE=semanas.reduce((s,[,x])=>s+(x.entradas||0),0);const totalN=semanas.reduce((s,[,x])=>s+(x.novos||0),0);return`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-radius:12px;overflow:hidden"><div onclick="toggleMesSemana('${mkey}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;touch-action:manipulation"><div><div style="font-weight:800;font-size:13px;text-transform:capitalize">${label}</div><div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:2px">${semanas.length} semana(s) • ${R$(totalE)} • ${totalN} novo(s)</div></div><div>${isOpen?'▲':'▼'}</div></div>${isOpen?`<div style="border-top:1px solid rgba(56,189,248,.11);padding:8px">${semanas.map(([key,s])=>`<div onclick="openResumoSemanal('${key}')" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:10px 12px;margin-bottom:5px;cursor:pointer;touch-action:manipulation;display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:700;font-size:11px">${s.label||key}</div><div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">${s.novos||0} novo(s) • ${s.date||''}</div></div><div style="text-align:right"><div class="mono" style="font-weight:800;font-size:12px;color:#34d399">${R$(s.entradas||0)}</div><div style="font-size:9px;color:${(s.ritmo||0)>=100?'#34d399':(s.ritmo||0)>=75?'#38bdf8':'#f87171'};font-weight:700">${s.ritmo||0}% ritmo</div></div></div>`).join('')}</div>`:''}</div>`;}).join('')}</div>`;
+  el.innerHTML=`<div style="font-weight:800;font-size:14px;margin-bottom:10px">📊 Dashboard Semanal</div>
+  ${months.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:28px;font-size:12px;line-height:1.8">Nenhum resumo ainda.<br>Aparece toda segunda-feira automaticamente.</div>':''}
+  <div style="display:flex;flex-direction:column;gap:6px">
+  ${months.map(mkey=>{
+    const isOpen=mkey===openMonth;
+    const label=new Date(mkey+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    const semanas=byMonth[mkey];
+    const totalE=semanas.reduce((s,[,x])=>s+(x.entradas||0),0);
+    const totalN=semanas.reduce((s,[,x])=>s+(x.novos||0),0);
+    const avgRitmo=semanas.length>0?Math.round(semanas.reduce((s,[,x])=>s+(x.ritmo||0),0)/semanas.length):0;
+    return`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-radius:12px;overflow:hidden">
+      <div onclick="toggleMesSemana('${mkey}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;touch-action:manipulation">
+        <div>
+          <div style="font-weight:800;font-size:13px;text-transform:capitalize">${label}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:2px">${semanas.length} semana(s) • ${R$(totalE)} • ${totalN} novo(s) • ritmo médio ${avgRitmo}%</div>
+        </div>
+        <div>${isOpen?'▲':'▼'}</div>
+      </div>
+      ${isOpen?`<div style="border-top:1px solid rgba(56,189,248,.11);padding:8px">
+        ${semanas.map(([key,s])=>{
+          const rC=(s.ritmo||0)>=100?'#34d399':(s.ritmo||0)>=75?'#38bdf8':'#f87171';
+          return`<div onclick="openResumoSemanal('${key}')" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:10px 12px;margin-bottom:5px;cursor:pointer;touch-action:manipulation">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
+              <div>
+                <div style="font-weight:700;font-size:11px">${s.label||key}</div>
+                <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:1px">${s.novos||0} novo(s) • ${s.date||''}</div>
+              </div>
+              <div style="text-align:right">
+                <div class="mono" style="font-weight:800;font-size:12px;color:#34d399">${R$(s.entradas||0)}</div>
+                <div style="font-size:9px;color:${rC};font-weight:700">${s.ritmo||0}% ritmo</div>
+              </div>
+            </div>
+            ${(s.bdProd||[]).length>0?`<div style="display:flex;gap:4px;flex-wrap:wrap">
+              ${(s.bdProd||[]).slice(0,3).map(p=>`<span style="font-size:8px;padding:1px 6px;border-radius:20px;background:${p.c}22;color:${p.c};font-weight:600">${p.n} ${R$(p.t)}</span>`).join('')}
+            </div>`:''}
+          </div>`;
+        }).join('')}
+      </div>`:''}
+    </div>`;
+  }).join('')}
+  </div>`;
   el.dataset.openMonth=openMonth;
 }
 
@@ -1409,37 +1477,42 @@ async function init() {
   document.getElementById('sync-txt').textContent='🔄...';
   await syncPull();
   fixPagamentosAntigos();
+  checkFimMes();
   setInterval(syncPull, 10000);
+  setInterval(checkFimMes, 3600000); // verifica a cada hora
 }
 
 function fixPagamentosAntigos() {
-  // Corrige clientes que foram restaurados sem mesAnterior
-  // Um pagamento é "antigo" se não foi feito no mês atual
-  const curMk = mk(); // YYYY-MM
+  const curMk = mk();
   let changed = false;
+  // 1. Marca pagamentos de meses anteriores
   D.clients.forEach((c,i)=>{
     (c.pagamentos||[]).forEach((p,j)=>{
-      if(p.mesAnterior || p.historico) return;
-      // Verifica se a data do pagamento é do mês atual
-      if(p.data) {
-        const parts = p.data.split('/');
-        if(parts.length===3) {
-          const pMk = `${parts[2]}-${parts[1].padStart(2,'0')}`;
-          if(pMk !== curMk) {
-            D.clients[i].pagamentos[j] = {...p, mesAnterior:true};
-            changed = true;
-          }
+      if(p.mesAnterior||p.historico) return;
+      if(p.data){
+        const parts=p.data.split('/');
+        if(parts.length===3){
+          const pMk=`${parts[2]}-${parts[1].padStart(2,'0')}`;
+          if(pMk!==curMk){D.clients[i].pagamentos[j]={...p,mesAnterior:true};changed=true;}
         }
-      } else if(p.mes && !p.mes.includes(ms().split(' ')[0])) {
-        D.clients[i].pagamentos[j] = {...p, mesAnterior:true};
-        changed = true;
       }
     });
   });
-  if(changed) {
-    save();
-    console.log('Pagamentos antigos corrigidos automaticamente');
-  }
+  // 2. Restaura clientes de todos os meses do histórico que não estão na lista atual
+  Object.values(D.history||{}).forEach(snap=>{
+    (snap.clients||[]).forEach(hc=>{
+      const jaExiste=D.clients.some(c=>c.nome===hc.nome&&c.productId===hc.productId);
+      if(!jaExiste){
+        D.clients.push({...hc,pagamentos:(hc.pagamentos||[]).map(p=>({...p,mesAnterior:true}))});
+        changed=true;
+      }
+    });
+  });
+  // 3. Corrige meta e ecossistema se zerados
+  if(D.meta===0||D.meta===135000){D.meta=200000;changed=true;}
+  const ativos=D.clients.filter(c=>c.status==='ativo'||c.status==='atraso').length;
+  if(D.ativos<ativos){D.ativos=ativos;changed=true;}
+  if(changed){save();console.log('Dados corrigidos automaticamente');}
 }
 
 init();
