@@ -887,9 +887,11 @@ function confirmarSinalEntrou(idx, extraValor, payMethod, diaCobranca) {
   if(!s) return;
   const pagamentos = [{valor:s.valorSinal, data:dh(), mes:ms()+' (sinal)'}];
   if(extraValor>0) pagamentos.push({valor:extraValor, data:dh(), mes:ms()});
-  // Remove o extra do sinal do caixa pois vai virar pagamento do cliente
+  // Remove o extra do sinal (vai entrar pelo pagamento do cliente via tpMes)
   const extraIdx = D.extras.findIndex(e=>e.isSinal && e.sinalNome===s.nome);
   if(extraIdx>=0) D.extras.splice(extraIdx,1);
+  // Se pagou a mais, adiciona esse valor como extra no caixa
+  if(extraValor>0) D.extras.push({valor:extraValor, descricao:`Pgto extra — ${s.nome}`, data:dh()});
   D.clients.push({nome:s.nome,insta:s.insta||'',segInicio:s.segInicio||0,productId:s.productId,productName:s.productName,fullPrice:s.fullPrice,payMethod:payMethod||'pix',diaCobranca:payMethod==='boleto'?diaCobranca:null,pagamentos,dataInicio:dh(),mesesContrato:0,status:'ativo',type:'novo',temSinal:true});
   D.sinais.splice(idx,1);
   D.ativos++;
@@ -899,7 +901,7 @@ function confirmarSinalEntrou(idx, extraValor, payMethod, diaCobranca) {
 function sinalCorreu(idx) {
   const s = (D.sinais||[])[idx];
   if(!s) return;
-  // Remove o extra do sinal que entrou no caixa
+  // Remove do caixa o sinal que entrou
   const extraIdx = D.extras.findIndex(e=>e.isSinal && e.sinalNome===s.nome);
   if(extraIdx>=0) D.extras.splice(extraIdx,1);
   D.sinais.splice(idx,1);
@@ -1098,6 +1100,23 @@ function fecharMes(){
   document.getElementById('modal-overlay').classList.add('open');
 }
 function exportSnap(key){const snap=D.history[key];if(!snap)return;const lb=new Date(key+'-01').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});const txt=[`=== CD GRUPO — ${lb.toUpperCase()} ===`,`Fechado: ${snap.date}`,'',`Caixa: ${R$(snap.caixa)}`,`Meta: ${R$(snap.meta)}`,`Atingiu: ${snap.pct}%`,...(snap.stats?['',`Ticket: ${R$(snap.stats.ticket)}`,`Clientes: ${snap.stats.total}`]:[])].join('\n');navigator.clipboard.writeText(txt).then(()=>toast('📋 Copiado!')).catch(()=>alert(txt));}
+
+
+function toggleHistMonth(k){
+  const el=document.getElementById('view-historico');
+  const allM=Object.keys(D.history||{}).sort();
+  let sel=el.dataset.selM?JSON.parse(el.dataset.selM):allM;
+  sel=sel.includes(k)?sel.filter(x=>x!==k):[...sel,k];
+  if(!sel.length)sel=allM;
+  el.dataset.selM=JSON.stringify(sel);
+  renderHistorico();
+}
+
+function selBdMes(mes){
+  const el=document.getElementById('view-historico');
+  el.dataset.selBd=mes;
+  renderHistorico();
+}
 
 function renderSemanas() {
   const el = document.getElementById('view-semanas');
@@ -1394,7 +1413,7 @@ function saveSinal() {
   if(!nome||!prod||!sinal||!decisao){ toast('Preencha todos os campos','#b91c1c'); return; }
   const p=pr(prod);
   if(!D.sinais) D.sinais=[];
-  // Sinal entra direto no caixa como extra
+  // Sinal entra no caixa imediatamente
   D.extras.push({valor:sinal, descricao:`Sinal — ${nome}`, data:dh(), isSinal:true, sinalNome:nome});
   D.sinais.push({id:Date.now(),nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p.n,fullPrice:p.p,valorSinal:sinal,dataDecisao:decisao,cadastro:dh()});
   closeModal(); save(); toast('💸 Sinal salvo! Valor já no caixa.');
