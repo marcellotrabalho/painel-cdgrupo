@@ -62,9 +62,9 @@ button:active{transform:scale(.97)}
 #main{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:9px}
 /* CLIENTES TAB */
 #clientes-layout{display:flex;flex-direction:column;flex:1;overflow:hidden}
-#clientes-search-bar{padding:7px 12px;border-bottom:1px solid rgba(56,189,248,.11);flex-shrink:0;background:#040d1a;position:sticky;top:0;z-index:10}
+#clientes-search-bar{padding:7px 12px;border-bottom:1px solid rgba(56,189,248,.11);flex-shrink:0}
 #clientes-search-bar input{margin-bottom:0}
-#clientes-list{flex:1;overflow-y:auto;padding:10px 12px;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+#clientes-list{flex:1;overflow-y:auto;padding:10px 12px}
 /* MODAL */
 #modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.88);backdrop-filter:blur(12px);z-index:100;display:flex;align-items:flex-end;justify-content:center;display:none}
 #modal-overlay.open{display:flex}
@@ -95,14 +95,14 @@ button:active{transform:scale(.97)}
       <button class="tab-btn" onclick="setTab('clientes')" id="tab-clientes">👥 Clientes</button>
       <button class="tab-btn" onclick="setTab('cadastro')" id="tab-cadastro">📋 Cadastro</button>
       <button class="tab-btn" onclick="setTab('historico')" id="tab-historico">📊 Métricas</button>
-      <button class="tab-btn" onclick="setTab('semanas')" id="tab-semanas">📊 Semanas</button>
+      <button class="tab-btn" onclick="setTab('semanas')" id="tab-semanas">📅 Semanas</button>
     </div>
     <div class="topright">
       <div style="display:flex;align-items:center;gap:3px">
         <div class="sync-dot pu" id="sync-dot"></div>
-        <span class="sync-txt" id="sync-txt">...</span>
+        <span class="sync-txt" id="sync-txt">🔄...</span>
+        <button onclick="forcSync()" style="padding:2px 7px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.5);border-radius:6px;font-size:9px;font-weight:700" title="Forçar sync">🔄</button>
       </div>
-      <button onclick="forcSync()" style="padding:4px 8px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);color:rgba(255,255,255,.5);border-radius:6px;font-size:9px;font-weight:700" title="Forçar sincronização">🔄</button>
       <button class="btn-reg" onclick="openModal('choice')">+ Reg.</button>
       <span id="clock" class="mono"></span>
     </div>
@@ -129,11 +129,9 @@ button:active{transform:scale(.97)}
     <!-- CLIENTES TAB -->
     <div id="view-clientes" style="display:none;flex-direction:column;flex:1;overflow:hidden">
       <div id="clientes-search-bar">
-        <input type="search" placeholder="🔍 Buscar cliente..." id="search-input" oninput="renderClientes()" autocomplete="off" style="margin-bottom:8px">
-        <div id="filtros-status" style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:4px"></div>
-        <div id="filtros-prod" style="display:flex;gap:4px;flex-wrap:wrap"></div>
+        <input type="search" placeholder="🔍 Buscar cliente..." id="search-input" oninput="renderClientes()" autocomplete="off">
       </div>
-      <div id="clientes-list" style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch"></div>
+      <div id="clientes-list"></div>
     </div>
 
     <!-- CADASTRO TAB -->
@@ -168,13 +166,23 @@ button:active{transform:scale(.97)}
 <!-- SYNC MODAL -->
 <div id="sync-modal">
   <div id="sync-box">
-    <div style="font-weight:900;font-size:18px;color:#edf4ff;margin-bottom:4px">🔗 Backup</div>
-    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:16px;line-height:1.7">Seus dados sincronizam automaticamente via Firebase entre todos os dispositivos.<br><br>Use o backup abaixo para ter uma cópia local de segurança.</div>
-    <div style="display:flex;gap:7px;margin-bottom:12px">
-      <button onclick="exportData()" style="flex:1;padding:10px;border:1px solid rgba(56,189,248,.2);border-radius:8px;background:rgba(56,189,248,.07);color:#38bdf8;font-weight:700;font-size:12px">📤 Exportar JSON</button>
-      <button onclick="importData()" style="flex:1;padding:10px;border:1px solid rgba(167,139,250,.2);border-radius:8px;background:rgba(167,139,250,.07);color:#a78bfa;font-weight:700;font-size:12px">📥 Importar JSON</button>
+    <div style="font-weight:900;font-size:18px;color:#edf4ff;margin-bottom:4px">🔗 Sincronização</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:16px;line-height:1.7">Para compartilhar dados entre dispositivos, use o <strong style="color:#38bdf8">JSONBin.io</strong> (gratuito).<br>1. Acesse <strong>jsonbin.io</strong> → crie conta grátis<br>2. Vá em API Keys → copie a Master Key<br>3. Cole abaixo e clique em Conectar</div>
+    <span class="lbl">Master Key (X-Master-Key)</span>
+    <input type="text" id="jb-key" placeholder="$2b$10$..." style="margin-bottom:9px">
+    <span class="lbl">Bin ID (deixe vazio para criar novo)</span>
+    <input type="text" id="jb-bin" placeholder="64abc123..." style="margin-bottom:12px">
+    <div style="display:flex;gap:7px">
+      <button onclick="closeSyncModal()" style="flex:1;padding:10px;border:1.5px solid rgba(255,255,255,.1);border-radius:8px;background:none;color:rgba(255,255,255,.38);font-weight:600;font-size:13px">Cancelar</button>
+      <button onclick="saveSync()" style="flex:2;padding:10px;border:none;border-radius:8px;background:#0f766e;color:#fff;font-weight:700;font-size:13px">Conectar</button>
     </div>
-    <button onclick="closeSyncModal()" style="width:100%;padding:10px;border:1.5px solid rgba(255,255,255,.1);border-radius:8px;background:none;color:rgba(255,255,255,.38);font-weight:600;font-size:13px">Fechar</button>
+    <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:9px;color:rgba(255,255,255,.38);font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px">Backup Manual</div>
+      <div style="display:flex;gap:7px">
+        <button onclick="exportData()" style="flex:1;padding:8px;border:1px solid rgba(56,189,248,.2);border-radius:7px;background:rgba(56,189,248,.07);color:#38bdf8;font-weight:700;font-size:11px">📤 Exportar JSON</button>
+        <button onclick="importData()" style="flex:1;padding:8px;border:1px solid rgba(167,139,250,.2);border-radius:7px;background:rgba(167,139,250,.07);color:#a78bfa;font-weight:700;font-size:11px">📥 Importar JSON</button>
+      </div>
+    </div>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
   </div>
 </div>
@@ -194,50 +202,21 @@ const ST = [
 ];
 const LS_KEY = 'cdg_v20';
 const MK_KEY = 'cdg_mk';
-
+const SYNC_KEY = 'cdg_sync';
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
-let D = {clients:[],extras:[],sinais:[],meta:0,ativos:0,history:{},semanas:{}};
-let filtroStatus = 'todos';
-let filtroProd = 'todos';
+let D = {clients:[],extras:[],sinais:[],meta:0,ativos:0,history:{}};
 let curTab = 'painel';
 let confirmCb = null;
-
+let syncCfg = null;
+let syncTimer = null;
 
 // ─── UTILS ───────────────────────────────────────────────────────────────────
 const dh = () => new Date().toLocaleDateString('pt-BR');
 const ms = () => new Date().toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
 const mk = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; };
 const R$ = n => 'R$ ' + (n||0).toLocaleString('pt-BR');
-// Feriados nacionais fixos (MM-DD) e móveis calculados
-function getFeriados(y) {
-  // Cálculo da Páscoa (algoritmo de Meeus/Jones/Butcher)
-  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4;
-  const f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30;
-  const i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7;
-  const m_=Math.floor((a+11*h+22*l)/451);
-  const mes=Math.floor((h+l-7*m_+114)/31)-1;
-  const dia=(h+l-7*m_+114)%31+1;
-  const pascoa = new Date(y,mes,dia);
-  const addD = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
-  const key = d => `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  const moveis = new Set([
-    key(addD(pascoa,-48)), // Segunda Carnaval
-    key(addD(pascoa,-47)), // Terça Carnaval
-    key(addD(pascoa,-2)),  // Sexta-Feira Santa
-    key(pascoa),            // Páscoa
-    key(addD(pascoa,60)),  // Corpus Christi
-  ]);
-  const fixos = new Set(['01-01','04-21','05-01','09-07','10-12','11-02','11-15','11-20','12-25']);
-  return {moveis, fixos};
-}
-const isFeriado = (y,m,d) => {
-  const {moveis,fixos} = getFeriados(y);
-  const key = `${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-  return fixos.has(key) || moveis.has(key);
-};
-// Dia útil = segunda a sexta, sem feriado
-const isU = (y,m,d) => { const dow=new Date(y,m,d).getDay(); return dow!==0&&!isFeriado(y,m,d); };
+const isU = (y,m,d) => new Date(y,m,d).getDay() !== 0;
 const wdT = (y,m) => { let c=0,n=new Date(y,m+1,0).getDate(); for(let i=1;i<=n;i++) if(isU(y,m,i))c++; return c; };
 const wdA = (y,m,d) => { let c=0; for(let i=1;i<=d;i++) if(isU(y,m,i))c++; return c; };
 const wdR = (y,m,d) => { let c=0,n=new Date(y,m+1,0).getDate(); for(let i=d+1;i<=n;i++) if(isU(y,m,i))c++; return c; };
@@ -260,177 +239,97 @@ function toast(msg, col) {
   setTimeout(()=>t.remove(), 3000);
 }
 
-// ─── FIREBASE ─────────────────────────────────────────────────────────────────
+// ─── FIREBASE STORAGE ────────────────────────────────────────────────────────
 const FB_URL = 'https://cd-grupo-default-rtdb.firebaseio.com/data';
+const LS_KEY = 'cdg_v20';
+
+function loadLocal() {
+  try {
+    const r = localStorage.getItem(LS_KEY);
+    if(r) { const parsed = JSON.parse(r); D = norm(parsed); return true; }
+  } catch(e){}
+  return false;
+}
 
 function setSynced(ok) {
   const dot = document.getElementById('sync-dot');
   const txt = document.getElementById('sync-txt');
-  if(ok){ dot.className='sync-dot ok pu'; txt.className='sync-txt ok'; txt.textContent='✅ Sync'; }
-  else { dot.className='sync-dot pu'; txt.className='sync-txt'; txt.textContent='⚠️ Offline'; }
+  if(ok){ dot.className='sync-dot ok pu'; txt.textContent='✅ Sync'; }
+  else { dot.className='sync-dot pu'; txt.textContent='⚠️ Offline'; }
+}
+
+async function save() {
+  // Salva localStorage sempre
+  try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
+  // SEGURANÇA: nunca salva dados vazios no Firebase - isso causou perda de dados antes
+  const temDados = D.clients.length > 0 || Object.keys(D.history||{}).length > 0 || D.meta > 0;
+  if(!temDados) {
+    console.warn('save() bloqueado: dados vazios, Firebase protegido');
+    return;
+  }
+  try {
+    await fetch(FB_URL + '.json', {
+      method: 'PUT',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(D)
+    });
+    setSynced(true);
+  } catch(e){ setSynced(false); }
 }
 
 async function forcSync() {
   const txt = document.getElementById('sync-txt');
-  txt.textContent='🔄 Sync...';
+  txt.textContent = '🔄...';
   try {
-    const r = await fetch(FB_URL+'.json?t='+Date.now());
+    const r = await fetch(FB_URL + '.json?t=' + Date.now(), {cache:'no-store'});
     if(!r.ok) { toast('Erro ao conectar Firebase','#b91c1c'); return; }
     const j = await r.json();
     if(j) {
-      D = norm(j);
-      try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
-      fixPagamentosAntigos();
-      renderAll();
-      setSynced(true);
-      toast('✅ Sincronizado!');
+      // SEGURANÇA: só aceita dados do Firebase se tiver dados reais
+      const fbTemDados = (j.clients||[]).length > 0 || Object.keys(j.history||{}).length > 0 || j.meta > 0;
+      if(fbTemDados) {
+        D = norm(j);
+        try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
+        renderAll();
+        setSynced(true);
+        toast('✅ Sincronizado!');
+      } else {
+        toast('Firebase vazio — dados locais mantidos','#b91c1c');
+      }
     }
   } catch(e){ toast('Sem conexão com Firebase','#b91c1c'); setSynced(false); }
 }
 
 async function syncPull() {
   try {
-    const r = await fetch(FB_URL+'.json?t='+Date.now(), {cache:'no-store'});
+    const r = await fetch(FB_URL + '.json?t=' + Date.now(), {cache:'no-store'});
     if(!r.ok) { setSynced(false); return; }
     const j = await r.json();
     if(j) {
-      D = norm(j);
-      try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
-      renderAll();
+      // SEGURANÇA: só substitui dados locais se Firebase tiver dados reais
+      const fbTemDados = (j.clients||[]).length > 0 || Object.keys(j.history||{}).length > 0 || j.meta > 0;
+      if(fbTemDados) {
+        D = norm(j);
+        try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
+        renderAll();
+      }
     }
     setSynced(true);
   } catch(e){ setSynced(false); }
 }
 
-async function save() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
-  try {
-    await fetch(FB_URL+'.json', {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(D)
-    });
-    setSynced(true);
-  } catch(e){ setSynced(false); }
-  renderAll();
-}
-
-function loadLocal() {
-  try {
-    const r = localStorage.getItem(LS_KEY);
-    if(r) { D = norm(JSON.parse(r)); return true; }
-  } catch(e){}
-  return false;
-}
-
-function exportData() {
-  const blob = new Blob([JSON.stringify(D,null,2)],{type:'application/json'});
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'cdgrupo_'+mk()+'.json';
-  a.click();
-  toast('📤 Exportado!');
-}
-
-function importData() {
-  document.getElementById('import-file').click();
-}
-
-function handleImport(e) {
-  const f = e.target.files[0];
-  if(!f) return;
-  const reader = new FileReader();
-  reader.onload = async ev => {
-    try {
-      D = norm(JSON.parse(ev.target.result));
-      await save();
-      toast('✅ Importado!');
-    } catch(e){ toast('Arquivo inválido','#b91c1c'); }
-  };
-  reader.readAsText(f);
-}
-
-function closeSyncModal(){ document.getElementById('sync-modal').classList.remove('open'); }
-function openSyncModal(){ document.getElementById('sync-modal').classList.add('open'); }
-function loadSyncCfg(){}
-
-// ─── MONTH AUTO-CLOSE ─────────────────────────────────────────────────────────
-function checkMonthRollover() {
-  const cur = mk();
-  const prev = localStorage.getItem(MK_KEY);
-  if(prev && prev !== cur && (D.clients.length > 0 || D.extras.length > 0)) {
-    const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tp(c),0)
-                + D.extras.reduce((s,e)=>s+(e.valor||0),0);
-    const pct = D.meta>0 ? Math.min(100,Math.round(caixa/D.meta*100)) : 0;
-    D.history[prev] = {clients:[...D.clients],extras:[...D.extras],meta:D.meta,caixa,pct,date:dh()};
-    D.clients = []; D.extras = []; D.sinais = []; D.meta = 0;
-  }
-  localStorage.setItem(MK_KEY, cur);
-}
-
-// ─── TABS ─────────────────────────────────────────────────────────────────────
-function setTab(t) {
-  curTab = t;
-  ['painel','clientes','cadastro','historico','semanas'].forEach(id => {
-    const el = document.getElementById('view-'+id);
-    if(!el) return;
-    if(id==='painel'||id==='clientes') el.style.display = id===t ? 'flex' : 'none';
-    else el.style.display = id===t ? 'block' : 'none';
-    const btn = document.getElementById('tab-'+id);
-    if(btn) btn.classList.toggle('active', id===t);
-  });
-  renderAll();
-  // Apply active styles to default filters
-  if(t==='clientes') {
-    setTimeout(()=>{
-      setFiltroStatus(filtroStatus);
-      setFiltroProd(filtroProd);
-    }, 50);
-  }
-}
-
-// ─── CLOCK ───────────────────────────────────────────────────────────────────
-setInterval(()=>{ document.getElementById('clock').textContent = new Date().toLocaleTimeString('pt-BR',{hour12:false}); }, 1000);
-
-// ─── RENDER ALL ───────────────────────────────────────────────────────────────
-function renderAll() {
-  renderAlerts();
-  if(curTab==='painel') renderPainel();
-  if(curTab==='clientes') renderClientes();
-  if(curTab==='cadastro') renderCadastro();
-  if(curTab==='historico') renderHistorico();
-  if(curTab==='semanas') renderSemanas();
-  checkDashboardSemanal();
-}
 
 // ─── ALERTS ──────────────────────────────────────────────────────────────────
 function renderAlerts() {
-  const now = new Date(), Y=now.getFullYear(), M=now.getMonth(), Dd=now.getDate();
-  const diasNoMes = new Date(Y,M+1,0).getDate();
+  const now = new Date(), D_ = now.getDate();
   const sinA = (D.sinais||[]).filter(s=>{ const d=dAt(s.dataDecisao); return d!==null&&d<=2&&d>=0; });
-  const cobH = D.clients.filter(c=>c.type!=='antigo'&&c.payMethod==='boleto'&&parseInt(c.diaCobranca)===Dd&&c.status!=='cancelado'&&c.status!=='concluido');
-  // Alerta: clientes em atraso
-  const emAtraso = D.clients.filter(c=>c.status==='atraso');
-  // Alerta: contratos perto de vencer (último mês)
-  const pVencer = D.clients.filter(c=>c.mesesContrato>0&&c.status==='ativo'&&(()=>{const m=mDe(c.dataInicio,Y,M);return m>=c.mesesContrato-1&&m<c.mesesContrato;})());
-  // Alerta: ritmo abaixo de 75% na segunda metade do mês
-  let alertaRitmo = null;
-  if(Dd > diasNoMes/2) {
-    const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+(c.pagamentos||[]).filter(p=>!p.historico).reduce((a,p)=>a+p.valor,0),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
-    const TWD_=wdT(Y,M), wdP_=wdA(Y,M,Dd);
-    const mExp_ = TWD_>0?(D.meta/TWD_)*wdP_:0;
-    const ritmo_ = mExp_>0?Math.round(caixa/mExp_*100):100;
-    if(D.meta>0 && ritmo_<75) alertaRitmo = ritmo_;
-  }
+  const cobH = D.clients.filter(c=>c.type!=='antigo'&&c.payMethod==='boleto'&&parseInt(c.diaCobranca)===D_&&c.status!=='cancelado'&&c.status!=='concluido');
   let html = '';
   if(sinA.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#7c2d12,#9a3412)">💸 Decisão: ${sinA.map(s=>esc(s.nome)+' ('+esc(s.dataDecisao)+')').join(', ')}</div>`;
   if(cobH.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#c2410c,#ea580c)">📅 Boleto HOJE: ${cobH.map(c=>esc(c.nome)).join(', ')}</div>`;
-  if(emAtraso.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#92400e,#b45309)">⚠️ Em atraso: ${emAtraso.map(c=>esc(c.nome)).join(', ')}</div>`;
-  if(pVencer.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#4c1d95,#5b21b6)">🔄 Renovação próxima: ${pVencer.map(c=>esc(c.nome)).join(', ')}</div>`;
-  if(alertaRitmo!==null) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#7f1d1d,#991b1b)">🔴 Ritmo da meta em ${alertaRitmo}% — segunda metade do mês!</div>`;
   // Lembrete de fechar mês
   if(localStorage.getItem('cdg_lembrete_fechar')==='1') {
-    html += `<div class="alert-bar" style="background:linear-gradient(90deg,#065f46,#047857);justify-content:space-between">
+    html += `<div class="alert-bar" style="background:linear-gradient(90deg,#065f46,#047857);display:flex;justify-content:space-between;align-items:center">
       <span>📦 Pronto para fechar o mês?</span>
       <button onclick="promptFecharMes()" style="padding:3px 10px;background:#fff;color:#065f46;border:none;border-radius:5px;font-weight:700;font-size:10px">Fechar agora</button>
     </div>`;
@@ -454,7 +353,7 @@ function renderPainel() {
   const rC = ritmo>=100?'#16a34a':ritmo>=75?'#1d4ed8':'#b91c1c';
   const rI = ritmo>=100?'🚀':ritmo>=75?'🔵':'🔴';
   const rMsg = ritmo>=100?`+${Math.round(ritmo-100)}% acima`:ritmo>=75?`falta ${Math.round(100-ritmo)}%`:`${Math.round(100-ritmo)}% abaixo`;
-  const sideC = clients.filter(c=>tpMes(c)>0);
+  const sideC = clients.filter(c=>tpMes(c)>0 && c.type!=='antigo');
   const dataLabel = now.toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'});
 
   // Sidebar sinais
@@ -493,7 +392,7 @@ function renderPainel() {
         <div style="font-weight:700;font-size:11px;margin-bottom:2px;padding-right:14px">${esc(c.nome)}</div>
         <div style="display:flex;justify-content:space-between;background:rgba(52,211,153,.08);border-radius:5px;padding:2px 6px">
           <span style="font-size:8px;color:#34d399">${esc(c.productName||'')}</span>
-          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:9px;color:#34d399">${R$(tpMes(c))}</span>
+          <span style="font-family:'JetBrains Mono',monospace;font-weight:700;font-size:9px;color:#34d399">${R$(tp(c))}</span>
         </div>
         ${isBH?`<button onclick="openModal('boletoPago',{idx:${ri}})" style="margin-top:3px;width:100%;padding:3px;background:#c2410c;border:none;color:#fff;border-radius:5px;font-weight:700;font-size:8px">📅 Foi Pago!</button>`:''}
       </div>`;
@@ -533,53 +432,6 @@ function renderPainel() {
       </div>
     </div>
 
-    ${(()=>{
-      const pbd={};
-      clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>!p.mesAnterior&&!p.historico).forEach(p=>{pbd[p.data]=(pbd[p.data]||0)+p.valor;}));
-      extras.forEach(e=>{pbd[e.data]=(pbd[e.data]||0)+e.valor;});
-      const bestMes=Object.entries(pbd).sort((a,b)=>b[1]-a[1])[0]||null;
-      const pbdAll={...pbd};
-      Object.values(D.history||{}).forEach(snap=>{
-        (snap.clients||[]).forEach(c=>(c.pagamentos||[]).forEach(p=>{if(p.data)pbdAll[p.data]=(pbdAll[p.data]||0)+p.valor;}));
-        (snap.extras||[]).forEach(e=>{if(e.data)pbdAll[e.data]=(pbdAll[e.data]||0)+e.valor;});
-      });
-      const bestAll=Object.entries(pbdAll).sort((a,b)=>b[1]-a[1])[0]||null;
-      if(!bestAll&&!bestMes)return'';
-      return`<div class="card" style="background:rgba(251,191,36,.04);border:1px solid rgba(251,191,36,.2)">
-        <div style="display:flex;align-items:center;gap:10px;${bestMes?'margin-bottom:8px':''}">
-          <span style="font-size:22px">🏆</span>
-          <div><div class="lbl" style="margin-bottom:1px;color:#fbbf24">Melhor Dia da Empresa</div>
-          <div style="font-weight:900;font-size:15px;color:#fbbf24">${bestAll?bestAll[0]+' — '+R$(bestAll[1]):'—'}</div></div>
-        </div>
-        ${bestMes?`<div style="margin-top:7px;padding-top:7px;border-top:1px solid rgba(251,191,36,.1);display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:9px;color:rgba(251,191,36,.5);font-weight:700;letter-spacing:1px;text-transform:uppercase">Melhor dia do mês</span>
-          <span style="font-size:10px;color:rgba(251,191,36,.6);font-weight:700;font-family:'JetBrains Mono',monospace">${bestMes[0]} — ${R$(bestMes[1])}</span>
-        </div>`:''}
-      </div>`;
-    })()}
-    ${(()=>{
-      const bd={};
-      PR.forEach(p=>{bd[p.id]={n:p.n,t:0,q:0,c:p.c,b:p.b};});
-      clients.filter(c=>c.type!=='antigo').forEach(c=>{
-        const v=(c.pagamentos||[]).filter(p=>!p.historico).reduce((s,p)=>s+p.valor,0);
-        if(bd[c.productId]){bd[c.productId].t+=v;bd[c.productId].q++;}
-      });
-      extras.forEach(e=>{if(!bd.ext)bd.ext={n:'Outros',t:0,q:0,c:'#f87171',b:'rgba(248,113,113,.13)'};bd.ext.t+=e.valor||0;bd.ext.q++;});
-      const items=Object.values(bd).filter(x=>x.t>0);
-      if(!items.length) return '';
-      const mx=Math.max(...items.map(x=>x.t));
-      return `<div class="card"><div class="lbl" style="margin-bottom:9px">📊 Breakdown por Produto</div>
-        ${items.map(it=>`<div style="margin-bottom:8px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
-            <span style="font-size:11px;font-weight:600">${it.n} <span style="font-size:9px;color:rgba(255,255,255,.38)">(${it.q})</span></span>
-            <span class="mono" style="font-weight:800;font-size:11px;color:${it.c}">${R$(it.t)}</span>
-          </div>
-          <div style="height:4px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden">
-            <div style="height:100%;width:${mx>0?Math.round(it.t/mx*100):0}%;background:${it.c};border-radius:99px;transition:width 1s"></div>
-          </div>
-        </div>`).join('')}
-      </div>`;
-    })()}
     <div class="card">
       <div class="lbl">🎯 Meta Diária — ${dataLabel}</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px">
@@ -607,7 +459,6 @@ function renderPainel() {
       </div>
     </div>
 
-    ${(()=>{const conv=D.clients.filter(c=>c.temSinal).length,correram=D.extras.filter(e=>e.isSinal).length,total=conv+correram;if(!total)return'';const pctConv=Math.round(conv/total*100);return`<div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:9px;padding:0;background:transparent;border:none"><div style="background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.2);border-radius:12px;padding:12px"><div class="lbl" style="margin-bottom:4px">💸 Conversão Sinais</div><div class="mono" style="font-weight:900;font-size:26px;color:#34d399">${pctConv}%</div><div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:3px">${conv} de ${total} viraram clientes</div></div><div style="background:rgba(248,113,113,.06);border:1px solid rgba(248,113,113,.2);border-radius:12px;padding:12px"><div class="lbl" style="margin-bottom:4px">❌ Correram</div><div class="mono" style="font-weight:900;font-size:26px;color:#f87171">${correram}</div><div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:3px">${100-pctConv}% não converteram</div></div></div>`;})()}
     <div style="font-size:8px;color:rgba(255,255,255,.38);font-weight:700;text-transform:uppercase;letter-spacing:2px;padding-bottom:5px;border-bottom:1px solid rgba(56,189,248,.11)">Histórico do Mês</div>
     ${historicoItems.length===0&&extrasItems.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:22px;font-size:12px;line-height:1.9">Nenhum registro<br><span style="opacity:.6">Use + Reg.</span></div>':''}
     <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:6px">
@@ -619,7 +470,7 @@ function renderPainel() {
           <div style="font-size:8px;color:${s_.c};font-weight:600;margin-bottom:4px">● ${s_.l}</div>
           <div style="display:flex;justify-content:space-between;background:rgba(52,211,153,.07);border-radius:5px;padding:2px 6px">
             <span style="font-size:8px;color:#34d399">💰</span>
-            <span class="mono" style="font-weight:700;color:#34d399;font-size:9px">${R$(tpMes(c))}</span>
+            <span class="mono" style="font-weight:700;color:#34d399;font-size:9px">${R$(tp(c))}</span>
           </div>
         </div>`;
       }).join('')}
@@ -635,74 +486,17 @@ function renderPainel() {
     </div>
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
       <button onclick="openSyncModal()" style="padding:5px 10px;background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);color:#38bdf8;border-radius:6px;font-weight:700;font-size:9px">🔗 Sync/Backup</button>
-      
+      <button onclick="fecharMes()" style="padding:5px 11px;background:rgba(248,113,113,.07);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:6px;font-weight:700;font-size:9px">📦 Fechar Mês</button>
     </div>
   `;
 }
 
 // ─── CLIENTES ─────────────────────────────────────────────────────────────────
-function setFiltroStatus(s, noRender) {
-  filtroStatus = s;
-  ['todos','ativo','atraso','cancelado','concluido'].forEach(id => {
-    const btn = document.getElementById('fs-'+id);
-    if(!btn) return;
-    const st = ST.find(x=>x.id===id);
-    const isActive = id===s;
-    const col = id==='todos'?'#38bdf8':(st?.c||'#38bdf8');
-    btn.style.border = isActive ? `1.5px solid ${col}` : '1.5px solid rgba(255,255,255,.1)';
-    btn.style.color = isActive ? col : 'rgba(255,255,255,.38)';
-    btn.style.background = isActive ? col+'22' : 'transparent';
-  });
-  if(!noRender) renderClientes();
-}
-
-function setFiltroProd(pid, noRender) {
-  filtroProd = pid;
-  ['todos',...PR.map(p=>p.id)].forEach(id => {
-    const btn = document.getElementById('fp-'+id);
-    if(!btn) return;
-    const p = PR.find(x=>x.id===id);
-    const isActive = id===pid;
-    const col = id==='todos'?'#38bdf8':(p?.c||'#38bdf8');
-    btn.style.border = isActive ? `1.5px solid ${col}` : '1.5px solid rgba(255,255,255,.1)';
-    btn.style.color = isActive ? col : 'rgba(255,255,255,.38)';
-    btn.style.background = isActive ? col+'22' : 'transparent';
-  });
-  if(!noRender) renderClientes();
-}
-
 function renderClientes() {
-  // Build filter buttons if not yet built
-  const fsEl = document.getElementById('filtros-status');
-  if(fsEl && !fsEl.dataset.built) {
-    fsEl.innerHTML = '<div class="lbl" style="width:100%;margin-bottom:4px">Status:</div>' +
-      ['todos','ativo','atraso','cancelado','concluido'].map(s => {
-        const st = ST.find(x=>x.id===s);
-        const l = s==='todos'?'Todos':(st?.l||s);
-        return `<button onclick="setFiltroStatus('${s}')" id="fs-${s}" style="padding:3px 8px;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;background:transparent;color:rgba(255,255,255,.38);font-weight:700;font-size:9px;flex-shrink:0">${l}</button>`;
-      }).join('');
-    fsEl.dataset.built = '1';
-  }
-  const fpEl = document.getElementById('filtros-prod');
-  if(fpEl && !fpEl.dataset.built) {
-    fpEl.innerHTML = '<div class="lbl" style="width:100%;margin-bottom:4px">Produto:</div>' +
-      ['todos',...PR.map(p=>p.id)].map(pid => {
-        const p = PR.find(x=>x.id===pid);
-        const l = pid==='todos'?'Todos':(p?.n||pid);
-        return `<button onclick="setFiltroProd('${pid}')" id="fp-${pid}" style="padding:3px 8px;border:1.5px solid rgba(255,255,255,.1);border-radius:20px;background:transparent;color:rgba(255,255,255,.38);font-weight:700;font-size:9px;flex-shrink:0">${l}</button>`;
-      }).join('');
-    fpEl.dataset.built = '1';
-  }
-  // Apply active styles
-  setFiltroStatus(filtroStatus, true);
-  setFiltroProd(filtroProd, true);
   const q = (document.getElementById('search-input')?.value||'').toLowerCase();
   const now = new Date(), Y=now.getFullYear(), M=now.getMonth(), Dd=now.getDate();
   const filtC = D.clients.filter(c=>{
-    const matchQ = !q || (c.nome||'').toLowerCase().includes(q) || (c.productName||'').toLowerCase().includes(q);
-    const matchSt = filtroStatus==='todos' || (c.status||'ativo')===filtroStatus;
-    const matchProd = filtroProd==='todos' || c.productId===filtroProd;
-    return matchQ && matchSt && matchProd;
+    return !q || (c.nome||'').toLowerCase().includes(q) || (c.productName||'').toLowerCase().includes(q);
   });
   const fut = D.clients.filter(c=>c.status!=='cancelado'&&c.status!=='concluido'&&c.type!=='antigo')
     .reduce((s,c)=>{ const p=pr(c.productId); return s+Math.max(0,(p?p.p:0)-tp(c)); }, 0);
@@ -778,7 +572,7 @@ function renderCadastro() {
       const i=D.clients.indexOf(c), s_=si(c.status||'ativo');
       return `<div style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-left:3px solid #fb923c;border-radius:9px;padding:9px 11px;display:flex;align-items:center;justify-content:space-between;gap:7px">
         <div style="flex:1"><div style="font-weight:700;font-size:12px">${esc(c.nome)}</div><div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:1px">${esc(c.productName||'')} • ${c.dataInicio||'—'}</div></div>
-        <div style="text-align:right"><span style="font-size:7px;padding:1px 5px;border-radius:20px;font-weight:700;background:${s_.b};color:${s_.c}">● ${s_.l}</span><div class="mono" style="font-size:10px;color:#34d399;font-weight:700;margin-top:2px">${R$(tpMes(c))}</div></div>
+        <div style="text-align:right"><span style="font-size:7px;padding:1px 5px;border-radius:20px;font-weight:700;background:${s_.b};color:${s_.c}">● ${s_.l}</span><div class="mono" style="font-size:10px;color:#34d399;font-weight:700;margin-top:2px">${R$(tp(c))}</div></div>
         <button onclick="confirmDel(${i},'${esc(c.nome).replace(/'/g,"\\'")}',false)" style="background:none;border:none;color:rgba(255,255,255,.38);font-size:12px">✕</button>
       </div>`;
     }).join('')}
@@ -787,126 +581,247 @@ function renderCadastro() {
 
 // ─── HISTORICO ────────────────────────────────────────────────────────────────
 function renderHistorico() {
-  const entries=Object.entries(D.history||{}).sort((a,b)=>a[0].localeCompare(b[0]));
-  const el=document.getElementById('view-historico');
-  if(!entries.length){el.innerHTML=`<div style="text-align:center;color:rgba(255,255,255,.38);padding:40px;font-size:13px;line-height:2">Nenhum mês arquivado ainda.</div>`;return;}
-  const allM=entries.map(([k])=>k);
-  const selM=el.dataset.selM?JSON.parse(el.dataset.selM):allM;
-  const selBd=el.dataset.selBd||'todos';
-  const filtE=entries.filter(([k])=>selM.includes(k));
-  const mLbl=k=>new Date(k+'-02').toLocaleDateString('pt-BR',{month:'short',year:'2-digit'});
-  const totalMeta=entries.reduce((s,[,x])=>s+(x.meta||0),0);
-  const totalCaixa=entries.reduce((s,[,x])=>s+(x.caixa||0),0);
-  const projAnual=(entries.length>0?totalCaixa/entries.length:0)*12;
-  const maxC=Math.max(...filtE.map(([,s])=>s.caixa||0),1);
-  const maxT=Math.max(...filtE.map(([,s])=>s.stats?.ticket||0),1);
-  const bdSrc=selBd==='todos'?entries:entries.filter(([k])=>k===selBd);
-  const acc={};PR.forEach(p=>{acc[p.id]={n:p.n,c:p.c,t:0,q:0};});
-  bdSrc.forEach(([,snap])=>{(snap.stats?.bdProd||[]).forEach(p=>{const pr=PR.find(x=>x.n===p.n);if(pr){acc[pr.id].t+=p.t||0;acc[pr.id].q+=p.q||0;}});});
-  const bdItems=Object.values(acc).filter(x=>x.t>0).sort((a,b)=>b.t-a.t);
-  const bdMax=bdItems[0]?.t||1;
-  function barchart(items,maxV,colFn,lblFn,valFn){
-    if(!items.length)return'<div style="color:rgba(255,255,255,.38);text-align:center;padding:16px;font-size:11px">Nenhum dado ainda.</div>';
-    const H=100;
-    const steps=[0,.25,.5,.75,1].reverse();
-    return`<div style="display:flex;gap:0;align-items:stretch">
-      <div style="display:flex;flex-direction:column;justify-content:space-between;padding-bottom:22px;padding-right:5px;flex-shrink:0">
-        ${steps.map(s=>`<div style="font-size:6px;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace;text-align:right">${R$(Math.round(maxV*s))}</div>`).join('')}
+  const entries = Object.entries(D.history||{}).sort((a,b)=>b[0].localeCompare(a[0]));
+  const el = document.getElementById('view-historico');
+  const mLbl = k => new Date(k+'-02').toLocaleDateString('pt-BR',{month:'short',year:'2-digit'});
+
+  // Current month data (open)
+  const curCaixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tpMes(c),0) + D.extras.reduce((s,e)=>s+(e.valor||0),0);
+  const curMk = mk();
+  const curClients = D.clients.filter(c=>tpMes(c)>0);
+  const curBd = {};
+  PR.forEach(p=>{curBd[p.id]={n:p.n,c:p.c,t:0,q:0};});
+  D.clients.filter(c=>c.type!=='antigo').forEach(c=>{const v=tpMes(c);if(v>0&&curBd[c.productId]){curBd[c.productId].t+=v;curBd[c.productId].q++;}});
+  const curBdArr = Object.values(curBd).filter(x=>x.t>0).sort((a,b)=>b.t-a.t);
+  const curBdMax = curBdArr[0]?.t||1;
+
+  // All months for chart (including current)
+  const allForChart = [...entries.slice().reverse(), ['current', {caixa:curCaixa, meta:D.meta, pct:D.meta>0?Math.min(100,Math.round(curCaixa/D.meta*100)):0}]];
+  const maxC = Math.max(...allForChart.map(([,s])=>s.caixa||0), 1);
+
+  // KPIs
+  const totalCaixa = entries.reduce((s,[,x])=>s+(x.caixa||0),0) + curCaixa;
+  const totalMeta = entries.reduce((s,[,x])=>s+(x.meta||0),0) + (D.meta||0);
+  const projAnual = allForChart.length>0 ? (totalCaixa/allForChart.length)*12 : 0;
+
+  el.innerHTML = `
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
+    <div class="card" style="text-align:center;border-top:2px solid #38bdf8">
+      <div class="lbl" style="margin-bottom:3px">Acumulado Total</div>
+      <div class="mono" style="font-weight:900;font-size:13px;color:#38bdf8">${R$(totalCaixa)}</div>
+      <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">${totalMeta>0?Math.round(totalCaixa/totalMeta*100):0}% das metas</div>
+    </div>
+    <div class="card" style="text-align:center;border-top:2px solid #34d399">
+      <div class="lbl" style="margin-bottom:3px">Mês Atual</div>
+      <div class="mono" style="font-weight:900;font-size:13px;color:#34d399">${R$(curCaixa)}</div>
+      <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">${D.meta>0?Math.round(curCaixa/D.meta*100):0}% da meta</div>
+    </div>
+    <div class="card" style="text-align:center;border-top:2px solid #a78bfa">
+      <div class="lbl" style="margin-bottom:3px">Projeção Anual</div>
+      <div class="mono" style="font-weight:900;font-size:13px;color:#a78bfa">${R$(projAnual)}</div>
+      <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">média ${allForChart.length} mês(es)</div>
+    </div>
+  </div>
+
+  <!-- GRÁFICO CRESCIMENTO -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="lbl" style="margin-bottom:10px">📈 Crescimento Mês a Mês</div>
+    <div style="display:flex;gap:0;align-items:stretch">
+      <div style="display:flex;flex-direction:column;justify-content:space-between;padding-bottom:22px;padding-right:6px;flex-shrink:0">
+        ${[1,.75,.5,.25,0].map(s=>`<div style="font-size:7px;color:rgba(255,255,255,.3);font-family:'JetBrains Mono',monospace;text-align:right">${R$(Math.round(maxC*s))}</div>`).join('')}
       </div>
       <div style="flex:1;overflow-x:auto">
-        <div style="display:flex;align-items:flex-end;gap:4px;height:${H+22}px;border-left:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1);padding:0 6px;min-width:${Math.max(200,items.length*44)}px">
-          ${items.map(item=>{const val=valFn(item);const h=maxV>0?Math.round((val/maxV)*H):0;const col=colFn(item);return`<div style="flex:1;min-width:36px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:${H}px">
-            <div style="font-size:6px;color:${col};font-weight:700;margin-bottom:2px;font-family:'JetBrains Mono',monospace;text-align:center">${val>0?'R$'+(val/1000).toFixed(0)+'k':''}</div>
-            <div style="width:65%;height:${h}px;min-height:${val>0?2:0}px;background:${col};border-radius:3px 3px 0 0"></div>
-          </div>`;}).join('')}
+        <div style="display:flex;align-items:flex-end;gap:5px;height:100px;border-left:1px solid rgba(255,255,255,.1);border-bottom:1px solid rgba(255,255,255,.1);padding:0 6px;min-width:${Math.max(200,allForChart.length*50)}px">
+          ${allForChart.map(([k,snap])=>{
+            const isCur = k==='current';
+            const h = maxC>0?Math.round((snap.caixa/maxC)*95):0;
+            const bat = snap.caixa>=(snap.meta||0);
+            const col = isCur?'#fbbf24':(bat?'#34d399':'#f87171');
+            const lb = isCur?'atual':mLbl(k);
+            return`<div style="flex:1;min-width:40px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:95px">
+              <div style="font-size:6px;color:${col};font-weight:700;margin-bottom:2px;font-family:'JetBrains Mono',monospace">${snap.caixa>0?'R$'+(snap.caixa/1000).toFixed(0)+'k':''}</div>
+              <div style="width:75%;height:${h}px;min-height:${snap.caixa>0?2:0}px;background:${col};border-radius:3px 3px 0 0;${isCur?'opacity:.8;border:1px dashed rgba(251,191,36,.5)':''}"></div>
+            </div>`;
+          }).join('')}
         </div>
-        <div style="display:flex;gap:4px;padding:2px 6px;min-width:${Math.max(200,items.length*44)}px">
-          ${items.map(item=>`<div style="flex:1;min-width:36px;text-align:center;font-size:7px;color:rgba(255,255,255,.4)">${lblFn(item)}</div>`).join('')}
+        <div style="display:flex;gap:5px;padding:3px 6px;min-width:${Math.max(200,allForChart.length*50)}px">
+          ${allForChart.map(([k])=>`<div style="flex:1;min-width:40px;text-align:center;font-size:7px;color:rgba(255,255,255,.4)">${k==='current'?'atual':mLbl(k)}</div>`).join('')}
         </div>
+      </div>
+    </div>
+    <div style="display:flex;gap:12px;font-size:8px;margin-top:6px">
+      <span style="color:#34d399">■ Bateu meta</span>
+      <span style="color:#f87171">■ Não bateu</span>
+      <span style="color:#fbbf24">■ Mês atual</span>
+    </div>
+  </div>
+
+  <!-- MÊS ATUAL ABERTO -->
+  <div class="card" style="margin-bottom:10px;border-left:3px solid #fbbf24">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div>
+        <div style="font-weight:800;font-size:13px;color:#fbbf24">📅 Mês Atual — Em aberto</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.38)">Atualiza conforme você registra</div>
+      </div>
+      <div style="text-align:right">
+        <div class="mono" style="font-weight:900;font-size:15px;color:#fbbf24">${R$(curCaixa)}</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.38)">${D.meta>0?Math.round(curCaixa/D.meta*100):0}% de ${R$(D.meta)}</div>
+      </div>
+    </div>
+    <div style="height:3px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden;margin-bottom:10px">
+      <div style="height:100%;width:${D.meta>0?Math.min(100,Math.round(curCaixa/D.meta*100)):0}%;background:#fbbf24;border-radius:99px"></div>
+    </div>
+    ${curBdArr.length>0?`<div class="lbl" style="margin-bottom:6px">Breakdown por Produto</div>
+    ${curBdArr.map(p=>`<div style="margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+        <span style="font-size:11px;font-weight:700;color:${p.c}">${p.n} <span style="font-size:9px;color:rgba(255,255,255,.38)">(${p.q})</span></span>
+        <span class="mono" style="font-weight:700;font-size:11px;color:${p.c}">${R$(p.t)}</span>
+      </div>
+      <div style="height:5px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden">
+        <div style="height:100%;width:${Math.round(p.t/curBdMax*100)}%;background:${p.c};border-radius:99px"></div>
+      </div>
+    </div>`).join('')}`:''}
+    ${curClients.length>0?`<div class="lbl" style="margin-bottom:5px;margin-top:8px">Clientes do Mês (${curClients.length})</div>
+    <div style="display:flex;flex-direction:column;gap:3px;max-height:150px;overflow-y:auto">
+      ${curClients.map(c=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:rgba(255,255,255,.025);border-radius:6px;font-size:11px">
+        <span style="font-weight:600">${esc(c.nome)} ${c.type==='antigo'?'<span style="font-size:8px;color:rgba(255,255,255,.38)">(recorrência)</span>':''}</span>
+        <span class="mono" style="color:#34d399">${R$(tpMes(c))}</span>
+      </div>`).join('')}
+    </div>`:''}
+  </div>
+
+  <!-- MESES ARQUIVADOS -->
+  ${entries.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:20px;font-size:12px">Nenhum mês arquivado ainda.</div>':''}
+  <div class="lbl" style="margin-bottom:8px">🗂 Meses Arquivados</div>
+  <div style="display:flex;flex-direction:column;gap:8px">
+  ${entries.map(([key,snap])=>{
+    const lb = new Date(key+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    const st = snap.stats||{};
+    const bdP = st.bdProd||[];
+    const bdPMax = bdP.length>0?Math.max(...bdP.map(x=>x.t||0)):1;
+    const allClients = snap.clients||[];
+    const novos = allClients.filter(c=>c.type==='novo'||!c.type);
+    const antigos = allClients.filter(c=>c.type==='antigo');
+    const extras = snap.extras||[];
+    return`<div class="card" style="border-left:3px solid ${snap.caixa>=(snap.meta||0)?'#34d399':'#f87171'}">
+      <div onclick="toggleMesDetalhes('${key}')" style="cursor:pointer;touch-action:manipulation">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div>
+            <div style="font-weight:800;font-size:14px;text-transform:capitalize">${lb}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.38)">Fechado em ${snap.date} • Toque para detalhes</div>
+          </div>
+          <div style="text-align:right">
+            <div class="mono" style="font-weight:900;font-size:16px;color:${snap.caixa>=(snap.meta||0)?'#34d399':'#f87171'}">${R$(snap.caixa)}</div>
+            <div style="font-size:9px;color:rgba(255,255,255,.38)">${snap.pct||0}% de ${R$(snap.meta)}</div>
+          </div>
+        </div>
+        <div style="height:4px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden">
+          <div style="height:100%;width:${Math.min(100,snap.pct||0)}%;background:${(snap.pct||0)>=100?'#34d399':'#38bdf8'};border-radius:99px"></div>
+        </div>
+      </div>
+      <div id="det-${key}" style="display:none;margin-top:12px;border-top:1px solid rgba(255,255,255,.07);padding-top:12px">
+        <!-- STATS -->
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:10px">
+          ${[['Ticket',R$(st.ticket||0),'#38bdf8'],['Clientes',String(st.total||allClients.length),'#edf4ff'],['Novos',String(novos.length),'#34d399'],['Cancelados',String(st.cancelados||0),'#f87171']].map(([l,v,c])=>`<div style="background:rgba(255,255,255,.03);border-radius:6px;padding:6px;text-align:center"><div class="lbl" style="margin-bottom:2px">${l}</div><div style="font-weight:700;font-size:11px;color:${c}">${v}</div></div>`).join('')}
+        </div>
+        <!-- MELHOR DIA -->
+        ${st.bestDay?`<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.15);border-radius:7px;padding:7px 10px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center">
+          <div><div class="lbl" style="margin-bottom:1px">🏆 Melhor Dia</div><div style="font-size:11px;color:#fbbf24;font-weight:700">${st.bestDay.data}</div></div>
+          <div class="mono" style="font-weight:800;font-size:14px;color:#fbbf24">${R$(st.bestDay.valor)}</div>
+        </div>`:''}
+        <!-- BREAKDOWN -->
+        ${bdP.length>0?`<div class="lbl" style="margin-bottom:6px">📊 Breakdown por Produto</div>
+        ${bdP.sort((a,b)=>b.t-a.t).map(p=>{const pr=PR.find(r=>r.n===p.n);const c=pr?.c||'#38bdf8';return`<div style="margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:3px">
+            <span style="font-size:11px;font-weight:700;color:${c}">${p.n} <span style="font-size:9px;color:rgba(255,255,255,.38)">(${p.q} cliente(s))</span></span>
+            <span class="mono" style="font-weight:700;font-size:11px;color:${c}">${R$(p.t)}</span>
+          </div>
+          <div style="height:5px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden"><div style="height:100%;width:${bdPMax>0?Math.round(p.t/bdPMax*100):0}%;background:${c};border-radius:99px"></div></div>
+        </div>`;}).join('')}`:''}
+        <!-- CLIENTES NOVOS -->
+        ${novos.length>0?`<div class="lbl" style="margin-bottom:5px;margin-top:8px">✅ Clientes Novos (${novos.length})</div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">
+          ${novos.map(c=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:rgba(52,211,153,.05);border-radius:6px;font-size:11px">
+            <span style="font-weight:600">${esc(c.nome)} <span style="font-size:9px;color:rgba(255,255,255,.38)">${c.productName||''}</span></span>
+            <span class="mono" style="color:#34d399">${R$((c.pagamentos||[]).reduce((s,p)=>s+(p.valor||0),0))}</span>
+          </div>`).join('')}
+        </div>`:''}
+        <!-- RECORRÊNCIAS -->
+        ${antigos.filter(c=>(c.pagamentos||[]).some(p=>!p.historico)).length>0?`<div class="lbl" style="margin-bottom:5px">🔄 Pagamentos de Recorrência</div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">
+          ${antigos.filter(c=>(c.pagamentos||[]).some(p=>!p.historico)).map(c=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:rgba(56,189,248,.05);border-radius:6px;font-size:11px">
+            <span style="font-weight:600">${esc(c.nome)} <span style="font-size:9px;color:rgba(255,255,255,.38)">${c.productName||''}</span></span>
+            <span class="mono" style="color:#38bdf8">${R$((c.pagamentos||[]).reduce((s,p)=>s+(p.valor||0),0))}</span>
+          </div>`).join('')}
+        </div>`:''}
+        <!-- EXTRAS -->
+        ${extras.length>0?`<div class="lbl" style="margin-bottom:5px">💰 Outros Valores</div>
+        <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">
+          ${extras.map(e=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:rgba(167,139,250,.05);border-radius:6px;font-size:11px">
+            <span style="font-weight:600">${esc(e.descricao||'Extra')}</span>
+            <span class="mono" style="color:#a78bfa">${R$(e.valor||0)}</span>
+          </div>`).join('')}
+        </div>`:''}
+        <!-- SINAIS -->
+        ${st.sinaisConv!==undefined?`<div style="background:rgba(52,211,153,.06);border:1px solid rgba(52,211,153,.15);border-radius:7px;padding:8px 10px;margin-bottom:8px">
+          <div class="lbl" style="margin-bottom:3px">💸 Conversão de Sinais</div>
+          <div style="font-size:12px;font-weight:700;color:#34d399">${st.sinaisConv} sinais convertidos</div>
+        </div>`:''}
+        <button onclick="exportSnap('${key}')" style="width:100%;padding:6px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.15);color:#34d399;border-radius:6px;font-weight:600;font-size:9px">📤 Exportar dados</button>
       </div>
     </div>`;
-  }
-  el.innerHTML=`
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-    <div style="font-weight:900;font-size:15px">📊 Métricas</div>
-    
-  </div>
-  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
-    <div class="card" style="text-align:center;border-top:2px solid #38bdf8"><div class="lbl" style="margin-bottom:3px">Meta Acumulada</div><div class="mono" style="font-weight:900;font-size:13px;color:#38bdf8">${R$(totalMeta)}</div></div>
-    <div class="card" style="text-align:center;border-top:2px solid #34d399"><div class="lbl" style="margin-bottom:3px">Caixa Acumulado</div><div class="mono" style="font-weight:900;font-size:13px;color:#34d399">${R$(totalCaixa)}</div><div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">${totalMeta>0?Math.round(totalCaixa/totalMeta*100):0}% das metas</div></div>
-    <div class="card" style="text-align:center;border-top:2px solid #a78bfa"><div class="lbl" style="margin-bottom:3px">Projeção Anual</div><div class="mono" style="font-weight:900;font-size:13px;color:#a78bfa">${R$(projAnual)}</div><div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">média ${entries.length} mês(es)</div></div>
-  </div>
-  <div class="card" style="margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:5px">
-      <div class="lbl" style="margin-bottom:0">📈 Crescimento Mês a Mês</div>
-      <div style="display:flex;gap:3px;flex-wrap:wrap">
-        <button onclick="selAllHM()" style="padding:2px 7px;border:1px solid rgba(56,189,248,.3);border-radius:20px;background:rgba(56,189,248,.1);color:#38bdf8;font-weight:700;font-size:8px">Todos</button>
-        ${allM.map(k=>`<button onclick="togHM('${k}')" style="padding:2px 7px;border:1.5px solid ${selM.includes(k)?'#38bdf8':'rgba(255,255,255,.1)'};border-radius:20px;background:${selM.includes(k)?'rgba(56,189,248,.15)':'transparent'};color:${selM.includes(k)?'#38bdf8':'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">${mLbl(k)}</button>`).join('')}
-      </div>
-    </div>
-    ${barchart(filtE,maxC,([,s])=>s.caixa>=(s.meta||0)?'#34d399':'#f87171',([k])=>mLbl(k),([,s])=>s.caixa||0)}
-    <div style="display:flex;gap:10px;font-size:8px;margin-top:6px"><span style="color:#34d399">■ Bateu</span><span style="color:#f87171">■ Não bateu</span></div>
-  </div>
-  <div class="card" style="margin-bottom:14px">
-    <div class="lbl" style="margin-bottom:10px">🎫 Evolução do Ticket Médio</div>
-    ${barchart(filtE.filter(([,s])=>(s.stats?.ticket||0)>0),maxT,()=>'#a78bfa',([k])=>mLbl(k),([,s])=>s.stats?.ticket||0)}
-  </div>
-  <div class="card" style="margin-bottom:14px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:5px">
-      <div class="lbl" style="margin-bottom:0">📊 Breakdown por Produto</div>
-      <div style="display:flex;gap:3px;flex-wrap:wrap">
-        <button onclick="setSBD('todos')" style="padding:2px 7px;border:1.5px solid ${selBd==='todos'?'#38bdf8':'rgba(255,255,255,.1)'};border-radius:20px;background:${selBd==='todos'?'rgba(56,189,248,.15)':'transparent'};color:${selBd==='todos'?'#38bdf8':'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">Todos</button>
-        ${allM.map(k=>`<button onclick="setSBD('${k}')" style="padding:2px 7px;border:1.5px solid ${selBd===k?'#38bdf8':'rgba(255,255,255,.1)'};border-radius:20px;background:${selBd===k?'rgba(56,189,248,.15)':'transparent'};color:${selBd===k?'#38bdf8':'rgba(255,255,255,.38)'};font-weight:700;font-size:8px">${mLbl(k)}</button>`).join('')}
-      </div>
-    </div>
-    ${bdItems.length===0?'<div style="color:rgba(255,255,255,.38);text-align:center;padding:16px;font-size:11px">Nenhum dado para o período.</div>':''}
-    ${bdItems.map(p=>`<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><div style="display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:2px;background:${p.c}"></div><span style="font-size:12px;font-weight:700;color:${p.c}">${p.n}</span><span style="font-size:9px;color:rgba(255,255,255,.38)">${p.q} cliente(s)</span></div><span class="mono" style="font-weight:800;font-size:13px;color:${p.c}">${R$(p.t)}</span></div><div style="height:6px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden"><div style="height:100%;width:${Math.round(p.t/bdMax*100)}%;background:${p.c};border-radius:99px"></div></div><div style="font-size:8px;color:rgba(255,255,255,.3);margin-top:2px">${Math.round(p.t/bdMax*100)}% do total</div></div>`).join('')}
-    ${bdItems.length>0?`<div style="padding-top:8px;border-top:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between"><span style="font-size:10px;color:rgba(255,255,255,.38)">Total</span><span class="mono" style="font-weight:800;font-size:12px">${R$(bdItems.reduce((s,p)=>s+p.t,0))}</span></div>`:''}
-  </div>
-  <div class="lbl" style="margin-bottom:8px">🗂 Meses Arquivados</div>
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:9px">
-  ${[...entries].reverse().map(([key,snap])=>{const lb=new Date(key+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});const st=snap.stats||{};const bdP=st.bdProd||[];const bdPMax=bdP.length>0?Math.max(...bdP.map(x=>x.t||0)):1;return`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-top:2px solid ${snap.caixa>=(snap.meta||0)?'#34d399':'#38bdf8'};border-radius:11px;padding:12px 13px"><div class="lbl" style="margin-bottom:1px;text-transform:capitalize">${lb}</div><div style="font-weight:700;font-size:10px;margin-bottom:7px">Fechado em ${snap.date}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:6px"><div style="background:rgba(255,255,255,.03);border-radius:6px;padding:6px 8px"><div class="lbl" style="margin-bottom:1px">Meta</div><div class="mono" style="font-weight:800;font-size:11px;color:#38bdf8">${R$(snap.meta)}</div></div><div style="background:rgba(52,211,153,.06);border-radius:6px;padding:6px 8px"><div class="lbl" style="color:#34d399;margin-bottom:1px">Caixa</div><div class="mono" style="font-weight:800;font-size:11px;color:#34d399">${R$(snap.caixa)}</div></div></div><div style="height:3px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden;margin-bottom:4px"><div style="height:100%;width:${Math.min(100,snap.pct||0)}%;background:${(snap.pct||0)>=100?'#34d399':'#38bdf8'};border-radius:99px"></div></div><div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:6px">${snap.pct||0}% • ${(snap.clients||[]).length} clientes</div>${st.bestDay?`<div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.15);border-radius:7px;padding:6px 9px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center"><div><div class="lbl" style="margin-bottom:1px">🏆 Melhor Dia</div><div style="font-size:10px;color:#fbbf24;font-weight:700">${st.bestDay.data}</div></div><div class="mono" style="font-weight:800;font-size:12px;color:#fbbf24">${R$(st.bestDay.valor)}</div></div>`:''} ${bdP.length>0?`<div style="margin-bottom:6px"><div class="lbl" style="margin-bottom:5px">Breakdown</div>${bdP.sort((a,b)=>b.t-a.t).map(p=>{const pr=PR.find(r=>r.n===p.n);const c=pr?.c||'#38bdf8';return`<div style="margin-bottom:5px"><div style="display:flex;justify-content:space-between;margin-bottom:2px"><span style="font-size:10px;font-weight:700;color:${c}">${p.n} <span style="font-size:8px;color:rgba(255,255,255,.38)">(${p.q})</span></span><span class="mono" style="font-weight:700;font-size:10px;color:${c}">${R$(p.t)}</span></div><div style="height:4px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden"><div style="height:100%;width:${bdPMax>0?Math.round(p.t/bdPMax*100):0}%;background:${c};border-radius:99px"></div></div></div>`;}).join('')}</div>`:''} ${st.ticket!==undefined?`<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;background:rgba(255,255,255,.025);border-radius:7px;padding:7px 8px;margin-bottom:6px">${[['Ticket',R$(st.ticket),'#38bdf8'],['Clientes',String(st.total||0),'#edf4ff'],['Novos',String(st.novos||0),'#34d399'],['Cancelados',String(st.cancelados||0),'#f87171']].map(([l,v,c])=>`<div><div class="lbl" style="margin-bottom:1px">${l}</div><div style="font-weight:700;font-size:10px;color:${c}">${v}</div></div>`).join('')}</div>`:''}<button onclick="exportSnap('${key}')" style="width:100%;padding:4px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.15);color:#34d399;border-radius:6px;font-weight:600;font-size:8px">📤 Exportar</button></div>`;}).join('')}
+  }).join('')}
   </div>`;
-  el.dataset.selM=JSON.stringify(selM);
-  el.dataset.selBd=selBd;
 }
-function selAllHM(){const el=document.getElementById('view-historico');el.dataset.selM=JSON.stringify(Object.keys(D.history||{}).sort());renderHistorico();}
-function togHM(k){const el=document.getElementById('view-historico');const allM=Object.keys(D.history||{}).sort();let sel=el.dataset.selM?JSON.parse(el.dataset.selM):allM;sel=sel.includes(k)?sel.filter(x=>x!==k):[...sel,k];if(!sel.length)sel=allM;el.dataset.selM=JSON.stringify(sel);renderHistorico();}
-function setSBD(mes){const el=document.getElementById('view-historico');el.dataset.selBd=mes;renderHistorico();}
+
+function toggleMesDetalhes(key) {
+  const el = document.getElementById('det-'+key);
+  if(!el) return;
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
+
+
+function toggleMesDetalhes(key) {
+  const el = document.getElementById('det-'+key);
+  if(!el) return;
+  el.style.display = el.style.display==='none' ? 'block' : 'none';
+}
 
 
 function sinalEntrou(idx) {
   const s = (D.sinais||[])[idx];
   if(!s) return;
-  // Abre modal perguntando quanto pagou a mais e forma de pagamento
-  openModal('sinalEntrou', {idx, sinal:s});
-}
-
-function confirmarSinalEntrou(idx, extraValor, payMethod, diaCobranca) {
-  const s = (D.sinais||[])[idx];
-  if(!s) return;
+  // Pergunta quanto pagou a mais além do sinal
+  const extraStr = prompt(`${s.nome} confirmou!\nO sinal foi R$ ${s.valorSinal}.\nQuanto pagou a mais agora? (0 se não pagou nada além)`);
+  if(extraStr === null) return; // cancelou
+  const extra = parseFloat(extraStr) || 0;
   const pagamentos = [{valor:s.valorSinal, data:dh(), mes:ms()+' (sinal)'}];
-  if(extraValor>0) pagamentos.push({valor:extraValor, data:dh(), mes:ms()});
-  // Remove o extra do sinal (vai entrar pelo pagamento do cliente via tpMes)
-  const extraIdx = D.extras.findIndex(e=>e.isSinal && e.sinalNome===s.nome);
-  if(extraIdx>=0) D.extras.splice(extraIdx,1);
-  // Se pagou a mais, adiciona esse valor como extra no caixa
-  if(extraValor>0) D.extras.push({valor:extraValor, descricao:`Pgto extra — ${s.nome}`, data:dh()});
-  D.clients.push({nome:s.nome,insta:s.insta||'',segInicio:s.segInicio||0,productId:s.productId,productName:s.productName,fullPrice:s.fullPrice,payMethod:payMethod||'pix',diaCobranca:payMethod==='boleto'?diaCobranca:null,pagamentos,dataInicio:dh(),mesesContrato:0,status:'ativo',type:'novo',temSinal:true});
+  if(extra > 0) pagamentos.push({valor:extra, data:dh(), mes:ms()});
+  // Remove do extras caso sinal tenha entrado como isSinal
+  const extraIdx = (D.extras||[]).findIndex(e=>e.isSinal && e.sinalNome===s.nome);
+  if(extraIdx >= 0) D.extras.splice(extraIdx, 1);
+  D.clients.push({nome:s.nome,insta:s.insta||'',segInicio:s.segInicio||0,productId:s.productId,productName:s.productName,fullPrice:s.fullPrice,payMethod:'pix',diaCobranca:null,pagamentos,dataInicio:dh(),mesesContrato:0,status:'ativo',type:'novo',temSinal:true});
   D.sinais.splice(idx,1);
   D.ativos++;
-  closeModal(); save(); toast('✅ Entrou! +1 no ecossistema.');
+  save(); toast('✅ Cliente cadastrado!');
 }
 
 function sinalCorreu(idx) {
   const s = (D.sinais||[])[idx];
   if(!s) return;
-  // Remove do caixa o sinal que entrou
-  const extraIdx = D.extras.findIndex(e=>e.isSinal && e.sinalNome===s.nome);
-  if(extraIdx>=0) D.extras.splice(extraIdx,1);
+  // Remove sinal do caixa se estava como extra
+  const extraIdx = (D.extras||[]).findIndex(e=>e.isSinal && e.sinalNome===s.nome);
+  if(extraIdx >= 0) D.extras.splice(extraIdx, 1);
+  // Pergunta se devolveu o dinheiro
+  const devolveu = confirm(`${s.nome} correu.\nVocê devolveu o sinal de R$ ${s.valorSinal}?`);
+  if(!devolveu) {
+    D.extras.push({valor:s.valorSinal, descricao:`Sinal retido — ${s.nome}`, data:dh()});
+    toast('💰 Sinal retido no caixa.');
+  } else {
+    toast('❌ Correu. Sinal devolvido.','#b91c1c');
+  }
   D.sinais.splice(idx,1);
-  // Pergunta se pediu dinheiro de volta
-  openModal('sinalCorreu', {nome:s.nome, valor:s.valorSinal});
+  save();
 }
 
 function setStatus(i, st) {
@@ -930,248 +845,69 @@ function confirmDel(i, nome, isExtra) {
 }
 function closeConfirm(){ document.getElementById('confirm-overlay').classList.remove('open'); }
 
-function devolverSinal() {
-  // Sinal já foi removido do caixa em sinalCorreu, não precisa fazer nada a mais
-  closeModal(); save(); toast('❌ Correu. Dinheiro devolvido.','#b91c1c');
+function promptFecharMes() {
+  const caixa = D.clients.reduce((s,c)=>s+tpMes(c),0) + D.extras.reduce((s,e)=>s+(e.valor||0),0);
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:40px">📦</div>
+      <div style="font-weight:900;font-size:20px;margin-top:8px">Finalizar o Mês?</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.4);margin-top:6px">${ms()} — Caixa atual: ${R$(caixa)}</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button onclick="fecharMes();closeModal()" style="width:100%;padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;font-weight:700;font-size:14px">✅ Sim, fechar agora</button>
+      <button onclick="ativarLembreteFechar();closeModal()" style="width:100%;padding:13px;border:1.5px solid rgba(56,189,248,.3);border-radius:10px;background:rgba(56,189,248,.07);color:#38bdf8;font-weight:700;font-size:13px">⏰ Daqui a pouco</button>
+      <button onclick="closeModal()" style="width:100%;padding:11px;border:1.5px solid rgba(255,255,255,.1);border-radius:10px;background:none;color:rgba(255,255,255,.35);font-weight:600;font-size:12px">Cancelar</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
 }
 
-
-
-function bP(idx,v){
-  D.clients[idx].pagamentos=[...(D.clients[idx].pagamentos||[]),{valor:v,data:dh(),mes:ms()}];
-  save(); toast('✅ Boleto pago!');
+function ativarLembreteFechar() {
+  localStorage.setItem('cdg_lembrete_fechar','1');
+  renderAll();
+  toast('⏰ Lembrete ativado — aparece no painel!');
 }
 
-
-
-function getSemanaKey() {
+function checkFimMes() {
   const now = new Date();
-  const day = now.getDay();
-  const diff = now.getDate() - day + (day===0?-6:1);
-  const mon = new Date(now); mon.setDate(diff);
-  return `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
-}
-
-function getSemanaLabel(key) {
-  const start = new Date(key+'T00:00:00');
-  const end = new Date(start); end.setDate(end.getDate()+6);
-  return `${start.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} a ${end.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`;
-}
-
-function checkDashboardSemanal() {
-  const now = new Date();
-  if(now.getDay()!==1) return; // Só segunda-feira
-  const key = getSemanaKey();
-  if(D.semanas && D.semanas[key]) return;
-  const lastMon = new Date(now); lastMon.setDate(lastMon.getDate()-7);
-  const lastSun = new Date(now); lastSun.setDate(lastSun.getDate()-1);
-  const inRange = dateStr => {
-    if(!dateStr) return false;
-    const [d,m,y] = dateStr.split('/').map(Number);
-    const dt = new Date(y,m-1,d);
-    return dt>=lastMon && dt<=lastSun;
-  };
-  // Entradas da semana
-  const entradas = D.clients.filter(c=>c.type!=='antigo')
-    .reduce((s,c)=>s+(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior&&!p.historico).reduce((a,p)=>a+p.valor,0),0)
-    + D.extras.filter(e=>inRange(e.data)).reduce((s,e)=>s+(e.valor||0),0);
-  const novos = D.clients.filter(c=>inRange(c.dataInicio)&&c.type==='novo').length;
-  // Ritmo: quantos dias úteis na semana vs meta diária
-  let diasUteisSemana=0, diasUteisPassados=0;
-  for(let d=new Date(lastMon); d<=lastSun; d.setDate(d.getDate()+1)) {
-    if(isU(d.getFullYear(),d.getMonth(),d.getDate())) {
-      diasUteisSemana++;
-      if(d<=now) diasUteisPassados++;
+  const lastDay = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
+  if(now.getDate() === lastDay) {
+    const jaAvisou = localStorage.getItem('cdg_avisou_'+mk());
+    const temDados = D.clients.length > 0 || D.extras.length > 0;
+    if(!jaAvisou && temDados) {
+      localStorage.setItem('cdg_avisou_'+mk(), '1');
+      setTimeout(promptFecharMes, 2000);
     }
   }
-  const metaSemana = D.meta>0&&wdT(now.getFullYear(),now.getMonth())>0 ? (D.meta/wdT(now.getFullYear(),now.getMonth()))*diasUteisSemana : 0;
-  const ritmoSemana = metaSemana>0 ? Math.round(entradas/metaSemana*100) : (entradas>0?100:0);
-  // Produto mais vendido na semana
-  const prodSemana = {};
-  PR.forEach(p=>{prodSemana[p.id]={n:p.n,c:p.c,t:0,q:0};});
-  D.clients.filter(c=>c.type!=='antigo').forEach(c=>{
-    const v=(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior&&!p.historico).reduce((a,p)=>a+p.valor,0);
-    if(v>0&&prodSemana[c.productId]){prodSemana[c.productId].t+=v;prodSemana[c.productId].q++;}
-  });
-  const topProdSemana = Object.values(prodSemana).filter(x=>x.t>0).sort((a,b)=>b.t-a.t)[0]||null;
-  // Melhor dia da semana
-  const pbd={};
-  D.clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior).forEach(p=>{pbd[p.data]=(pbd[p.data]||0)+p.valor;}));
-  D.extras.filter(e=>inRange(e.data)).forEach(e=>{pbd[e.data]=(pbd[e.data]||0)+e.valor;});
-  const bestDay = Object.entries(pbd).sort((a,b)=>b[1]-a[1])[0]||null;
-  const resumo = {
-    key, label:getSemanaLabel(key), entradas, novos, ritmo:ritmoSemana,
-    metaSemana, diasUteisSemana, topProd:topProdSemana,
-    bdProd:Object.values(prodSemana).filter(x=>x.t>0),
-    bestDay:bestDay?{data:bestDay[0],valor:bestDay[1]}:null,
-    date:dh()
+}
+
+function fecharMes() {
+  const atM = D.clients.filter(c=>c.type!=='antigo'&&c.status!=='cancelado');
+  const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tp(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
+  const pct = D.meta>0?Math.min(100,Math.round(caixa/D.meta*100)):0;
+  const key = mk();
+  D.history[key] = {
+    clients:[...D.clients],extras:[...D.extras],meta:D.meta,caixa,pct,date:dh(),
+    stats:{ticket:atM.length>0?Math.round(caixa/atM.length):0,total:atM.length,novos:D.clients.filter(c=>c.type==='novo').length,cancelados:D.clients.filter(c=>c.status==='cancelado').length}
   };
-  if(!D.semanas) D.semanas={};
-  D.semanas[key] = resumo;
-  save();
-  showResumoSemanal(resumo);
-}
-
-
-function showResumoSemanal(resumo) {
-  const box = document.getElementById('modal-box');
-  const bdHtml = (resumo.bdProd||[]).length>0 ? `
-    <div style="margin-bottom:12px">
-      <div class="lbl" style="margin-bottom:8px">Breakdown da Semana</div>
-      ${(resumo.bdProd||[]).sort((a,b)=>b.t-a.t).map(p=>{
-        const maxT=resumo.bdProd[0]?.t||1;
-        return`<div style="margin-bottom:6px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:2px">
-            <span style="font-size:11px;font-weight:700;color:${p.c}">${p.n} <span style="font-size:9px;color:rgba(255,255,255,.38)">(${p.q})</span></span>
-            <span class="mono" style="font-weight:700;font-size:11px;color:${p.c}">${R$(p.t)}</span>
-          </div>
-          <div style="height:4px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden">
-            <div style="height:100%;width:${Math.round(p.t/maxT*100)}%;background:${p.c};border-radius:99px"></div>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>` : '';
-  const ritmoC = (resumo.ritmo||0)>=100?'#34d399':(resumo.ritmo||0)>=75?'#38bdf8':'#f87171';
-  box.innerHTML = `
-    <div style="font-weight:900;font-size:19px;margin-bottom:2px">📊 Resumo Semanal</div>
-    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:14px">${resumo.label||resumo.key}</div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:11px">
-        <div class="lbl" style="margin-bottom:3px">Entrou na semana</div>
-        <div class="mono" style="font-weight:900;font-size:16px;color:#34d399">${R$(resumo.entradas)}</div>
-        ${resumo.metaSemana>0?`<div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">Meta: ${R$(resumo.metaSemana)}</div>`:''}
-      </div>
-      <div style="background:${ritmoC}15;border:1px solid ${ritmoC}44;border-radius:10px;padding:11px">
-        <div class="lbl" style="margin-bottom:3px">Ritmo da Semana</div>
-        <div class="mono" style="font-weight:900;font-size:16px;color:${ritmoC}">${resumo.ritmo||0}%</div>
-        <div style="font-size:8px;color:rgba(255,255,255,.38);margin-top:2px">${(resumo.ritmo||0)>=100?'✅ Acima da meta':(resumo.ritmo||0)>=75?'🔵 No ritmo':'🔴 Abaixo'}</div>
-      </div>
-      <div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:11px">
-        <div class="lbl" style="margin-bottom:3px">Novos Clientes</div>
-        <div class="mono" style="font-weight:900;font-size:16px;color:#a78bfa">${resumo.novos||0}</div>
-      </div>
-      <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:11px">
-        <div class="lbl" style="margin-bottom:3px">Melhor Dia</div>
-        <div style="font-weight:700;font-size:10px;color:#fbbf24">${resumo.bestDay?resumo.bestDay.data:'—'}</div>
-        ${resumo.bestDay?`<div class="mono" style="font-size:10px;color:#fbbf24">${R$(resumo.bestDay.valor)}</div>`:''}
-      </div>
-    </div>
-    ${bdHtml}
-    <div style="font-size:10px;color:rgba(255,255,255,.38);margin-bottom:12px;text-align:center">Salvo na aba 📊 Semanas para análise posterior</div>
-    <button onclick="closeModal()" style="width:100%;padding:11px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">✅ Entendido</button>`;
-  document.getElementById('modal-overlay').classList.add('open');
-}
-
-
-function promptFecharMes() {
-  const caixa=D.clients.reduce((s,c)=>s+tpMes(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
-  const box=document.getElementById('modal-box');
-  box.innerHTML=`<div style="text-align:center;margin-bottom:14px"><div style="font-size:36px">📦</div><div style="font-weight:900;font-size:19px;margin-top:6px">Finalizar o Mês?</div><div style="font-size:11px;color:rgba(255,255,255,.38);margin-top:4px">${ms()} — ${R$(caixa)} no caixa</div></div><div style="display:flex;flex-direction:column;gap:8px"><button onclick="fecharMes();closeModal()" style="width:100%;padding:12px;border:none;border-radius:10px;background:linear-gradient(135deg,#16a34a,#15803d);color:#fff;font-weight:700;font-size:14px">✅ Sim, fechar agora</button><button onclick="ativarLembreteFechar();closeModal()" style="width:100%;padding:12px;border:1.5px solid rgba(56,189,248,.3);border-radius:10px;background:rgba(56,189,248,.07);color:#38bdf8;font-weight:700;font-size:13px">⏰ Daqui a pouco</button><button onclick="closeModal()" style="width:100%;padding:10px;border:1.5px solid rgba(255,255,255,.1);border-radius:10px;background:none;color:rgba(255,255,255,.38);font-weight:600;font-size:13px">Cancelar</button></div>`;
-  document.getElementById('modal-overlay').classList.add('open');
-}
-function ativarLembreteFechar(){localStorage.setItem('cdg_lembrete_fechar','1');renderAll();toast('⏰ Lembrete ativado!');}
-function checkFimMes(){const now=new Date();const lastDay=new Date(now.getFullYear(),now.getMonth()+1,0).getDate();if(now.getDate()===lastDay){const jaAvisou=localStorage.getItem('cdg_avisou_'+mk());if(!jaAvisou&&(D.clients.length>0||D.extras.length>0)){localStorage.setItem('cdg_avisou_'+mk(),'1');setTimeout(promptFecharMes,2000);}}}
-function fecharMes(){
-  const now=new Date(),Y=now.getFullYear(),M=now.getMonth();
-  const caixa=D.clients.reduce((s,c)=>s+tpMes(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
-  const pct=D.meta>0?Math.min(100,Math.round(caixa/D.meta*100)):0;
-  const key=mk();
-  const atM=D.clients.filter(c=>c.status!=='cancelado'&&c.status!=='concluido');
-  const pbd_={};D.clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>!p.mesAnterior&&!p.historico).forEach(p=>{pbd_[p.data]=(pbd_[p.data]||0)+p.valor;}));D.extras.forEach(e=>{pbd_[e.data]=(pbd_[e.data]||0)+e.valor;});
-  const bestDay=Object.entries(pbd_).sort((a,b)=>b[1]-a[1])[0]||null;
-  const bdProd={};PR.forEach(p=>{bdProd[p.id]={n:p.n,c:p.c,t:0,q:0};});
-  D.clients.filter(c=>c.type!=='antigo').forEach(c=>{const v=tpMes(c);if(bdProd[c.productId]){bdProd[c.productId].t+=v;bdProd[c.productId].q++;}});
-  const topProd=Object.values(bdProd).filter(x=>x.t>0).sort((a,b)=>b.t-a.t)[0]||null;
-  const sinaisConv=D.clients.filter(c=>c.temSinal).length;
-  D.history[key]={clients:[...D.clients],extras:[...D.extras],meta:D.meta,caixa,pct,date:dh(),
-    stats:{ticket:atM.length>0?Math.round(caixa/atM.length):0,total:atM.length,
-      novos:D.clients.filter(c=>c.type==='novo').length,
-      cancelados:D.clients.filter(c=>c.status==='cancelado').length,
-      topProd:topProd?{n:topProd.n,c:topProd.c,t:topProd.t,q:topProd.q}:null,
-      bdProd:Object.values(bdProd).filter(x=>x.t>0),
-      sinaisConv,pct,bestDay:bestDay?{data:bestDay[0],valor:bestDay[1]}:null}};
-  D.clients=D.clients.map(c=>({...c,pagamentos:(c.pagamentos||[]).map(p=>({...p,mesAnterior:true}))}));
-  D.extras=[];D.sinais=[];D.meta=0;
+  // ✅ CLIENTES FICAM — nunca apaga clientes ao fechar mês
+  // Marca os pagamentos do mês atual como "anteriores" para não entrar no próximo caixa
+  D.clients = D.clients.map(c => ({
+    ...c,
+    pagamentos: (c.pagamentos||[]).map(p => ({...p, mesAnterior: true}))
+  }));
+  D.extras = []; D.sinais = []; D.meta = 0;
   localStorage.removeItem('cdg_lembrete_fechar');
   save();
-  const box=document.getElementById('modal-box');
-  const tp_=topProd;
-  box.innerHTML=`<div style="text-align:center;margin-bottom:14px"><div style="font-size:36px">${pct>=100?'🏆':'📦'}</div><div style="font-weight:900;font-size:19px;margin-top:4px">Mês Fechado!</div><div style="font-size:11px;color:rgba(255,255,255,.38);margin-top:2px">${ms()}</div></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:12px"><div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:11px;text-align:center"><div class="lbl" style="margin-bottom:3px">Caixa Final</div><div class="mono" style="font-weight:900;font-size:16px;color:#34d399">${R$(caixa)}</div><div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">${pct}% da meta</div></div><div style="background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);border-radius:10px;padding:11px;text-align:center"><div class="lbl" style="margin-bottom:3px">Clientes</div><div class="mono" style="font-weight:900;font-size:16px;color:#38bdf8">${atM.length}</div></div></div>${tp_?`<div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:11px;margin-bottom:12px"><div class="lbl" style="margin-bottom:5px">🏆 Produto Destaque</div><div style="display:flex;justify-content:space-between;align-items:center"><div><div style="font-weight:800;font-size:14px;color:${tp_.c||'#a78bfa'}">${tp_.n}</div><div style="font-size:10px;color:rgba(255,255,255,.38)">${tp_.q} cliente(s)</div></div><div class="mono" style="font-weight:900;font-size:16px;color:${tp_.c||'#a78bfa'}">${R$(tp_.t)}</div></div></div>`:''}<div style="font-size:10px;color:rgba(56,189,248,.7);background:rgba(56,189,248,.07);border-radius:8px;padding:9px;margin-bottom:12px;text-align:center">✅ Clientes mantidos. Registre novos pagamentos!</div><button onclick="closeModal()" style="width:100%;padding:11px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">🎉 Começar novo mês!</button>`;
-  document.getElementById('modal-overlay').classList.add('open');
+  // Mostra resumo de fechamento
+  const fechCaixa = entries_snap ? Object.values(entries_snap).reduce((s,v)=>s+v,0) : 0;
+  toast('📦 Mês fechado com sucesso!');
+  setTimeout(()=>{
+    const box = document.getElementById('modal-box');
+    box.innerHTML=`<div style="text-align:center;margin-bottom:14px"><div style="font-size:40px">🎉</div><div style="font-weight:900;font-size:20px;margin-top:8px">Mês Fechado!</div><div style="font-size:11px;color:rgba(255,255,255,.4);margin-top:4px">Dados salvos no histórico</div></div><div style="font-size:11px;color:rgba(56,189,248,.7);background:rgba(56,189,248,.07);border-radius:8px;padding:10px;margin-bottom:12px;text-align:center;line-height:1.6">✅ Clientes mantidos na aba Clientes<br>Registre novos pagamentos para ${new Date().toLocaleDateString('pt-BR',{month:'long'})}</div><button onclick="closeModal()" style="width:100%;padding:12px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">Começar novo mês!</button>`;
+    document.getElementById('modal-overlay').classList.add('open');
+  }, 500);
 }
-function exportSnap(key){const snap=D.history[key];if(!snap)return;const lb=new Date(key+'-01').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});const txt=[`=== CD GRUPO — ${lb.toUpperCase()} ===`,`Fechado: ${snap.date}`,'',`Caixa: ${R$(snap.caixa)}`,`Meta: ${R$(snap.meta)}`,`Atingiu: ${snap.pct}%`,...(snap.stats?['',`Ticket: ${R$(snap.stats.ticket)}`,`Clientes: ${snap.stats.total}`]:[])].join('\n');navigator.clipboard.writeText(txt).then(()=>toast('📋 Copiado!')).catch(()=>alert(txt));}
-
-
-function toggleHistMonth(k){
-  const el=document.getElementById('view-historico');
-  const allM=Object.keys(D.history||{}).sort();
-  let sel=el.dataset.selM?JSON.parse(el.dataset.selM):allM;
-  sel=sel.includes(k)?sel.filter(x=>x!==k):[...sel,k];
-  if(!sel.length)sel=allM;
-  el.dataset.selM=JSON.stringify(sel);
-  renderHistorico();
-}
-
-function selBdMes(mes){
-  const el=document.getElementById('view-historico');
-  el.dataset.selBd=mes;
-  renderHistorico();
-}
-
-function renderSemanas() {
-  const el = document.getElementById('view-semanas');
-  const entries = Object.entries(D.semanas||{}).sort((a,b)=>b[0].localeCompare(a[0]));
-  const byMonth = {};
-  entries.forEach(([key,s])=>{const mk_=key.slice(0,7);if(!byMonth[mk_])byMonth[mk_]=[];byMonth[mk_].push([key,s]);});
-  const months = Object.keys(byMonth).sort((a,b)=>b.localeCompare(a));
-  const openMonth = el.dataset.openMonth||months[0]||'';
-  el.innerHTML=`<div style="font-weight:800;font-size:14px;margin-bottom:10px">📊 Dashboard Semanal</div>
-  ${months.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:28px;font-size:12px;line-height:1.8">Nenhum resumo ainda.<br>Aparece toda segunda-feira automaticamente.</div>':''}
-  <div style="display:flex;flex-direction:column;gap:6px">
-  ${months.map(mkey=>{
-    const isOpen=mkey===openMonth;
-    const label=new Date(mkey+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-    const semanas=byMonth[mkey];
-    const totalE=semanas.reduce((s,[,x])=>s+(x.entradas||0),0);
-    const totalN=semanas.reduce((s,[,x])=>s+(x.novos||0),0);
-    const avgRitmo=semanas.length>0?Math.round(semanas.reduce((s,[,x])=>s+(x.ritmo||0),0)/semanas.length):0;
-    return`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-radius:12px;overflow:hidden">
-      <div onclick="toggleMesSemana('${mkey}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;touch-action:manipulation">
-        <div>
-          <div style="font-weight:800;font-size:13px;text-transform:capitalize">${label}</div>
-          <div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:2px">${semanas.length} semana(s) • ${R$(totalE)} • ${totalN} novo(s) • ritmo médio ${avgRitmo}%</div>
-        </div>
-        <div>${isOpen?'▲':'▼'}</div>
-      </div>
-      ${isOpen?`<div style="border-top:1px solid rgba(56,189,248,.11);padding:8px">
-        ${semanas.map(([key,s])=>{
-          const rC=(s.ritmo||0)>=100?'#34d399':(s.ritmo||0)>=75?'#38bdf8':'#f87171';
-          return`<div onclick="openResumoSemanal('${key}')" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:10px 12px;margin-bottom:5px;cursor:pointer;touch-action:manipulation">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
-              <div>
-                <div style="font-weight:700;font-size:11px">${s.label||key}</div>
-                <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:1px">${s.novos||0} novo(s) • ${s.date||''}</div>
-              </div>
-              <div style="text-align:right">
-                <div class="mono" style="font-weight:800;font-size:12px;color:#34d399">${R$(s.entradas||0)}</div>
-                <div style="font-size:9px;color:${rC};font-weight:700">${s.ritmo||0}% ritmo</div>
-              </div>
-            </div>
-            ${(s.bdProd||[]).length>0?`<div style="display:flex;gap:4px;flex-wrap:wrap">
-              ${(s.bdProd||[]).slice(0,3).map(p=>`<span style="font-size:8px;padding:1px 6px;border-radius:20px;background:${p.c}22;color:${p.c};font-weight:600">${p.n} ${R$(p.t)}</span>`).join('')}
-            </div>`:''}
-          </div>`;
-        }).join('')}
-      </div>`:''}
-    </div>`;
-  }).join('')}
-  </div>`;
-  el.dataset.openMonth=openMonth;
-}
-
-function toggleMesSemana(mkey){const el=document.getElementById('view-semanas');el.dataset.openMonth=el.dataset.openMonth===mkey?'':mkey;renderSemanas();}
-function openResumoSemanal(key){const s=D.semanas[key];if(!s)return;showResumoSemanal(s);}
-
 
 function exportSnap(key) {
   const snap = D.history[key];
@@ -1209,23 +945,6 @@ function buildModal(type) {
   if(type==='antigo') return buildFormEdit({},true);
   if(type==='anterior') return buildFormAnterior();
   if(type==='outros') return buildFormOutros();
-  if(type==='sinalEntrou') {
-    const s = modalCtx.sinal;
-    return `<div style="font-weight:900;font-size:19px;margin-bottom:4px">✅ ${esc(s.nome)} entrou!</div>
-      <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:14px;line-height:1.7">Sinal de ${R$(s.valorSinal)} já estava no caixa.<br>Quanto ele pagou a mais agora?</div>
-      <div class="gf"><div class="lbl">💰 Valor pago a mais (R$)</div><input type="number" inputmode="decimal" id="f-extra" placeholder="0 se não pagou nada a mais"><div style="font-size:10px;color:#34d399;margin-top:4px;opacity:.8">Pode deixar 0 se pagou só o sinal.</div></div>
-      ${buildPyP('pix','')}
-      <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" style="background:#16a34a" onclick="confirmarSinalEntrou(${modalCtx.idx},gn('f-extra'),g('f-pay'),g('f-dia'))">✅ Confirmar</button></div>`;
-  }
-  if(type==='sinalCorreu') {
-    return `<div style="font-weight:900;font-size:19px;margin-bottom:4px">❌ ${esc(modalCtx.nome||'')} correu</div>
-      <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:14px;line-height:1.7">O valor de ${R$(modalCtx.valor||0)} foi retirado do caixa.<br><br>O cliente pediu o dinheiro de volta?</div>
-      <div style="display:flex;gap:7px;margin-bottom:8px">
-        <button onclick="closeModal();save();toast('❌ Correu. Sem devolução.','#b91c1c')" style="flex:1;padding:11px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.2);color:#34d399;border-radius:8px;font-weight:700;font-size:12px">Não pediu de volta</button>
-        <button onclick="devolverSinal()" style="flex:1;padding:11px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:8px;font-weight:700;font-size:12px">Sim, devolveu</button>
-      </div>
-      <button onclick="closeModal();save();toast('❌ Correu. Sem devolução.','#b91c1c')" style="width:100%;padding:9px;border:1.5px solid rgba(255,255,255,.1);border-radius:8px;background:none;color:rgba(255,255,255,.38);font-weight:600;font-size:12px">Cancelar</button>`;
-  }
   if(type==='editMeta') return buildFormNum('🎯 Meta do Mês','','meta',D.meta,'#38bdf8');
   if(type==='editAtivos') return buildFormNum('👥 Ecossistema','','ativos',D.ativos,'#a78bfa');
   if(type==='editClient') { const c=D.clients[modalCtx.idx]; return buildFormEdit(c,false); }
@@ -1271,30 +990,6 @@ function buildFormSinal() {
 }
 
 function buildFormEdit(c, isNew) {
-  const extraCamposAntigo = isNew ? `
-    <div style="background:rgba(56,189,248,.06);border:1.5px solid rgba(56,189,248,.15);border-radius:10px;padding:12px;margin-bottom:9px">
-      <div style="font-size:11px;color:#38bdf8;font-weight:700;margin-bottom:10px">💰 Histórico de Pagamentos</div>
-      <div class="lbl">Total já pago (histórico anterior)</div>
-      <input type="number" inputmode="decimal" id="f-hist-total" placeholder="0" style="margin-bottom:9px">
-      <div class="lbl">Pagou algo esse mês?</div>
-      <div style="display:flex;gap:7px;margin-bottom:9px">
-        <div onclick="togglePagouMes(true)" id="pm-sim" style="flex:1;padding:8px;border:2px solid rgba(255,255,255,.1);border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:12px;color:rgba(255,255,255,.38)">✅ Sim</div>
-        <div onclick="togglePagouMes(false)" id="pm-nao" style="flex:1;padding:8px;border:2px solid rgba(255,255,255,.1);border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:12px;color:rgba(255,255,255,.38)">❌ Não</div>
-      </div>
-      <div id="pagou-mes-wrap" style="display:none">
-        <div class="lbl">Valor pago esse mês (R$)</div>
-        <input type="number" inputmode="decimal" id="f-mes-val" placeholder="0" style="margin-bottom:9px">
-        <div class="lbl">Forma de pagamento</div>
-        <div style="display:flex;gap:5px;margin-bottom:9px">${[['pix','PIX','#34d399'],['cartao','Cartão','#38bdf8'],['boleto','Boleto','#fb923c']].map(([v,l,c])=>`<div onclick="selPayMes('${v}','${c}')" data-pay-mes="${v}" style="flex:1;padding:7px 3px;border:2px solid rgba(255,255,255,.07);border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:11px;color:rgba(255,255,255,.38)">${l}</div>`).join('')}</div>
-        <input type="hidden" id="f-mes-pay" value="pix">
-        <div class="lbl">Já pagou o valor integral do produto?</div>
-        <div style="display:flex;gap:7px;margin-bottom:9px">
-          <div onclick="selQuitado(true)" id="quit-sim" style="flex:1;padding:7px;border:2px solid rgba(255,255,255,.07);border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:11px;color:rgba(255,255,255,.38)">✅ Sim, quitou</div>
-          <div onclick="selQuitado(false)" id="quit-nao" style="flex:1;padding:7px;border:2px solid rgba(255,255,255,.07);border-radius:8px;cursor:pointer;text-align:center;font-weight:700;font-size:11px;color:rgba(255,255,255,.38)">❌ Não ainda</div>
-        </div>
-        <input type="hidden" id="f-quitado" value="">
-      </div>
-    </div>` : '';
   return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">${isNew?'📋 Cliente Antigo':'✏️ Editar'}</div>
     <div class="lbl">Nome</div><input type="text" id="f-nome" value="${esc(c.nome||'')}" placeholder="Nome completo" autocomplete="off">
     <div class="lbl">Instagram</div><input type="text" id="f-insta" value="${esc(c.insta||'')}" placeholder="@usuario" autocomplete="off">
@@ -1305,35 +1000,8 @@ function buildFormEdit(c, isNew) {
     ${buildPP(c.productId||'')}
     ${buildPyP(c.payMethod||'pix',c.diaCobranca||'')}
     ${!isNew?buildStP(c.status||'ativo'):''}
-    ${extraCamposAntigo}
     <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveEdit(${isNew})">✅ Salvar</button></div>`;
 }
-
-function togglePagouMes(sim) {
-  document.getElementById('pagou-mes-wrap').style.display = sim ? 'block' : 'none';
-  document.getElementById('pm-sim').style.border = sim ? '2px solid #34d399' : '2px solid rgba(255,255,255,.1)';
-  document.getElementById('pm-sim').style.color = sim ? '#34d399' : 'rgba(255,255,255,.38)';
-  document.getElementById('pm-nao').style.border = sim ? '2px solid rgba(255,255,255,.1)' : '2px solid #f87171';
-  document.getElementById('pm-nao').style.color = sim ? 'rgba(255,255,255,.38)' : '#f87171';
-}
-
-function selPayMes(v, c) {
-  document.querySelectorAll('[data-pay-mes]').forEach(e=>{
-    const isMe = e.dataset.payMes===v;
-    e.style.border = isMe ? `2px solid ${c}` : '2px solid rgba(255,255,255,.07)';
-    e.style.color = isMe ? c : 'rgba(255,255,255,.38)';
-  });
-  document.getElementById('f-mes-pay').value = v;
-}
-
-function selQuitado(sim) {
-  document.getElementById('quit-sim').style.border = sim ? '2px solid #34d399' : '2px solid rgba(255,255,255,.07)';
-  document.getElementById('quit-sim').style.color = sim ? '#34d399' : 'rgba(255,255,255,.38)';
-  document.getElementById('quit-nao').style.border = sim ? '2px solid rgba(255,255,255,.07)' : '2px solid #f87171';
-  document.getElementById('quit-nao').style.color = sim ? 'rgba(255,255,255,.38)' : '#f87171';
-  document.getElementById('f-quitado').value = sim ? 'sim' : 'nao';
-}
-
 
 function buildFormAnterior() {
   let prodHtml = `<div class="lbl">1. Produto</div><div style="display:flex;flex-direction:column;gap:4px;margin-bottom:9px">`;
@@ -1416,7 +1084,7 @@ function saveSinal() {
   // Sinal entra no caixa imediatamente
   D.extras.push({valor:sinal, descricao:`Sinal — ${nome}`, data:dh(), isSinal:true, sinalNome:nome});
   D.sinais.push({id:Date.now(),nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p.n,fullPrice:p.p,valorSinal:sinal,dataDecisao:decisao,cadastro:dh()});
-  closeModal(); save(); toast('💸 Sinal salvo! Valor já no caixa.');
+  closeModal(); save(); toast('💸 Sinal salvo!');
 }
 
 function saveEdit(isNew) {
@@ -1426,27 +1094,8 @@ function saveEdit(isNew) {
   const p=pr(prod);
   const obj={nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p?.n||'',fullPrice:p?.p||0,payMethod:g('f-pay')||'pix',diaCobranca:g('f-pay')==='boleto'?g('f-dia'):null,dataInicio:g('f-dtIn')||dh(),mesesContrato:gi('f-meses'),obs:g('f-obs')};
   if(isNew){
-    // Processar campos do cliente antigo
-    const histTotal = gn('f-hist-total');
-    const pagouMes = document.getElementById('pagou-mes-wrap')?.style.display === 'block';
-    const mesVal = gn('f-mes-val');
-    const mesPay = g('f-mes-pay')||'pix';
-    const quitado = g('f-quitado')==='sim';
-    const pagamentos = [];
-    // Histórico anterior (não entra no caixa)
-    if(histTotal>0) pagamentos.push({valor:histTotal, data:obj.dataInicio||dh(), mes:'Histórico anterior', historico:true});
-    // Pagamento desse mês (entra no caixa)
-    if(pagouMes && mesVal>0) pagamentos.push({valor:mesVal, data:dh(), mes:ms(), payMethod:mesPay});
-    obj.pagamentos = pagamentos;
-    obj.status = quitado ? 'concluido' : 'ativo';
-    obj.type = 'antigo';
-    obj.payMethod = mesPay;
-    D.clients.push(obj);
-    D.ativos++;
-    // Se pagou esse mês, entra no caixa como extra
-    if(pagouMes && mesVal>0) {
-      D.extras.push({valor:mesVal, descricao:`Pgto mês — ${nome} (antigo)`, data:dh(), isAntigo:true});
-    }
+    obj.pagamentos=[]; obj.status='ativo'; obj.type='antigo';
+    D.clients.push(obj); D.ativos++;
   } else {
     const i=modalCtx.idx;
     obj.status=g('f-status')||D.clients[i].status||'ativo';
@@ -1489,49 +1138,181 @@ function saveNum(field) {
 }
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
+
+function setTab(t) {
+  curTab = t;
+  ['painel','clientes','cadastro','historico','semanas'].forEach(id => {
+    const el = document.getElementById('view-'+id);
+    if(!el) return;
+    if(id==='painel'||id==='clientes') el.style.display = id===t ? 'flex' : 'none';
+    else el.style.display = id===t ? 'block' : 'none';
+    const btn = document.getElementById('tab-'+id);
+    if(btn) btn.classList.toggle('active', id===t);
+  });
+  renderAll();
+}
+
+function renderAll() {
+  renderAlerts();
+  if(curTab==='painel') renderPainel();
+  if(curTab==='clientes') renderClientes();
+  if(curTab==='cadastro') renderCadastro();
+  if(curTab==='historico') renderHistorico();
+  if(curTab==='semanas') renderSemanas();
+}
+
+function renderSemanas() {
+  const el = document.getElementById('view-semanas');
+  if(!el) return;
+  const entries = Object.entries(D.semanas||{}).sort((a,b)=>b[0].localeCompare(a[0]));
+  const byMonth = {};
+  entries.forEach(([key,s])=>{ const mk_=key.slice(0,7); if(!byMonth[mk_])byMonth[mk_]=[]; byMonth[mk_].push([key,s]); });
+  const months = Object.keys(byMonth).sort((a,b)=>b.localeCompare(a));
+  const openMonth = el.dataset.openMonth||months[0]||'';
+  el.innerHTML=`<div style="font-weight:800;font-size:15px;margin-bottom:12px">📅 Dashboard Semanal</div>
+  ${months.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:40px;font-size:13px;line-height:2">Nenhum resumo semanal ainda.<br><span style="opacity:.6">Aparece toda segunda-feira automaticamente.</span></div>':''}
+  <div style="display:flex;flex-direction:column;gap:6px">
+  ${months.map(mkey=>{
+    const isOpen=mkey===openMonth;
+    const label=new Date(mkey+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    const semanas=byMonth[mkey];
+    const totalE=semanas.reduce((s,[,x])=>s+(x.entradas||0),0);
+    const avgR=Math.round(semanas.reduce((s,[,x])=>s+(x.ritmo||0),0)/semanas.length);
+    return`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-radius:12px;overflow:hidden">
+      <div onclick="toggleMesSemana('${mkey}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;touch-action:manipulation">
+        <div>
+          <div style="font-weight:800;font-size:13px;text-transform:capitalize">${label}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:2px">${semanas.length} semana(s) • ${R$(totalE)} • ritmo médio ${avgR}%</div>
+        </div>
+        <div>${isOpen?'▲':'▼'}</div>
+      </div>
+      ${isOpen?`<div style="border-top:1px solid rgba(56,189,248,.11);padding:8px">
+        ${semanas.map(([key,s])=>{
+          const rC=(s.ritmo||0)>=100?'#34d399':(s.ritmo||0)>=75?'#38bdf8':'#f87171';
+          return`<div onclick="abrirResumSemanal('${key}')" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:10px 12px;margin-bottom:5px;cursor:pointer;touch-action:manipulation">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+              <div>
+                <div style="font-weight:700;font-size:11px">${s.label||key}</div>
+                <div style="font-size:9px;color:rgba(255,255,255,.38)">${s.novos||0} novo(s)</div>
+              </div>
+              <div style="text-align:right">
+                <div class="mono" style="font-weight:800;font-size:12px;color:#34d399">${R$(s.entradas||0)}</div>
+                <div style="font-size:9px;color:${rC};font-weight:700">${s.ritmo||0}% ritmo</div>
+              </div>
+            </div>
+            ${(s.bdProd||[]).length>0?`<div style="display:flex;gap:4px;flex-wrap:wrap">${(s.bdProd||[]).slice(0,3).map(p=>`<span style="font-size:8px;padding:2px 6px;border-radius:20px;background:${p.c}22;color:${p.c};font-weight:600">${p.n} ${R$(p.t)}</span>`).join('')}</div>`:''}
+          </div>`;
+        }).join('')}
+      </div>`:''}
+    </div>`;
+  }).join('')}
+  </div>`;
+  el.dataset.openMonth = openMonth;
+}
+
+function toggleMesSemana(mkey) {
+  const el = document.getElementById('view-semanas');
+  el.dataset.openMonth = el.dataset.openMonth===mkey ? '' : mkey;
+  renderSemanas();
+}
+
+function abrirResumSemanal(key) {
+  const s = D.semanas?.[key];
+  if(!s) return;
+  const rC = (s.ritmo||0)>=100?'#34d399':(s.ritmo||0)>=75?'#38bdf8':'#f87171';
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `
+    <div style="font-weight:900;font-size:18px;margin-bottom:4px">📊 Resumo Semanal</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.38);margin-bottom:14px">${s.label||key}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
+      <div style="background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Entrou na semana</div>
+        <div class="mono" style="font-weight:900;font-size:18px;color:#34d399">${R$(s.entradas||0)}</div>
+        ${s.metaSemana?`<div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">Meta: ${R$(s.metaSemana)}</div>`:''}
+      </div>
+      <div style="background:${rC}15;border:1px solid ${rC}44;border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Ritmo da Semana</div>
+        <div class="mono" style="font-weight:900;font-size:18px;color:${rC}">${s.ritmo||0}%</div>
+        <div style="font-size:9px;color:rgba(255,255,255,.38);margin-top:2px">${(s.ritmo||0)>=100?'✅ Acima':'🔴 Abaixo'}</div>
+      </div>
+      <div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Novos Clientes</div>
+        <div class="mono" style="font-weight:900;font-size:18px;color:#a78bfa">${s.novos||0}</div>
+      </div>
+      <div style="background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.2);border-radius:10px;padding:11px">
+        <div class="lbl" style="margin-bottom:3px">Melhor Dia</div>
+        <div style="font-weight:700;font-size:11px;color:#fbbf24">${s.bestDay?s.bestDay.data+' '+R$(s.bestDay.valor):'—'}</div>
+      </div>
+    </div>
+    ${(s.bdProd||[]).length>0?`<div style="margin-bottom:12px"><div class="lbl" style="margin-bottom:7px">Produtos da Semana</div>${s.bdProd.map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid rgba(255,255,255,.05)"><span style="font-size:11px;font-weight:700;color:${p.c}">${p.n} (${p.q})</span><span class="mono" style="font-weight:700;font-size:11px;color:${p.c}">${R$(p.t)}</span></div>`).join('')}</div>`:''}
+    <button onclick="closeModal()" style="width:100%;padding:11px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">✅ Fechar</button>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function getSemanaKey() {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day===0?-6:1);
+  const mon = new Date(now); mon.setDate(diff);
+  return `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+}
+
+function getSemanaLabel(key) {
+  const start = new Date(key+'T00:00:00');
+  const end = new Date(start); end.setDate(end.getDate()+6);
+  return `${start.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})} a ${end.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'})}`;
+}
+
+function checkDashboardSemanal() {
+  const now = new Date();
+  if(now.getDay()!==1) return;
+  const key = getSemanaKey();
+  if(D.semanas?.[key]) return;
+  const lastMon = new Date(now); lastMon.setDate(lastMon.getDate()-7);
+  const lastSun = new Date(now); lastSun.setDate(lastSun.getDate()-1);
+  const inRange = dateStr => {
+    if(!dateStr) return false;
+    const [d,m,y] = dateStr.split('/').map(Number);
+    return new Date(y,m-1,d) >= lastMon && new Date(y,m-1,d) <= lastSun;
+  };
+  const entradas = D.clients.filter(c=>c.type!=='antigo')
+    .reduce((s,c)=>s+(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior).reduce((a,p)=>a+p.valor,0),0)
+    + D.extras.filter(e=>inRange(e.data)).reduce((s,e)=>s+(e.valor||0),0);
+  const novos = D.clients.filter(c=>inRange(c.dataInicio)&&c.type==='novo').length;
+  const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tpMes(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
+  const Y=now.getFullYear(),M=now.getMonth(),Dd=now.getDate();
+  const wdTotal = typeof wdT!=='undefined'?wdT(Y,M):22;
+  const wdPassados = typeof wdA!=='undefined'?wdA(Y,M,Dd):Dd;
+  const metaSemana = D.meta>0&&wdTotal>0?(D.meta/wdTotal)*Math.min(7,wdPassados):0;
+  const ritmo = metaSemana>0?Math.round(entradas/metaSemana*100):(entradas>0?100:0);
+  const pbd={};PR.forEach(p=>{pbd[p.id]={n:p.n,c:p.c,t:0,q:0};});
+  D.clients.filter(c=>c.type!=='antigo').forEach(c=>{
+    const v=(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior).reduce((a,p)=>a+p.valor,0);
+    if(v>0&&pbd[c.productId]){pbd[c.productId].t+=v;pbd[c.productId].q++;}
+  });
+  const pbd_= Object.entries(pbd).filter(([,x])=>x.t>0).map(([,x])=>x);
+  const pbd_max = pbd_.length>0?pbd_[0].t:1;
+  const pbdSorted = pbd_.sort((a,b)=>b.t-a.t);
+  const bdData={};D.clients.filter(c=>c.type!=='antigo').forEach(c=>(c.pagamentos||[]).filter(p=>inRange(p.data)&&!p.mesAnterior).forEach(p=>{bdData[p.data]=(bdData[p.data]||0)+p.valor;}));
+  D.extras.filter(e=>inRange(e.data)).forEach(e=>{bdData[e.data]=(bdData[e.data]||0)+e.valor;});
+  const bestDay=Object.entries(bdData).sort((a,b)=>b[1]-a[1])[0]||null;
+  const resumo={key,label:getSemanaLabel(key),entradas,novos,ritmo,metaSemana,bdProd:pbdSorted,bestDay:bestDay?{data:bestDay[0],valor:bestDay[1]}:null,date:dh()};
+  if(!D.semanas)D.semanas={};
+  D.semanas[key]=resumo;
+  // Não salva no Firebase agora - só no próximo save com dados reais
+  try{localStorage.setItem(LS_KEY,JSON.stringify(D));}catch(e){}
+  abrirResumSemanal(key);
+}
+
 async function init() {
   loadLocal();
   checkMonthRollover();
   renderAll();
-  document.getElementById('sync-txt').textContent='🔄...';
+  document.getElementById('sync-txt').textContent = '🔄...';
   await syncPull();
-  fixPagamentosAntigos();
   checkFimMes();
   setInterval(syncPull, 10000);
-  setInterval(checkFimMes, 3600000); // verifica a cada hora
-}
-
-function fixPagamentosAntigos() {
-  const curMk = mk();
-  let changed = false;
-  // 1. Marca pagamentos de meses anteriores
-  D.clients.forEach((c,i)=>{
-    (c.pagamentos||[]).forEach((p,j)=>{
-      if(p.mesAnterior||p.historico) return;
-      if(p.data){
-        const parts=p.data.split('/');
-        if(parts.length===3){
-          const pMk=`${parts[2]}-${parts[1].padStart(2,'0')}`;
-          if(pMk!==curMk){D.clients[i].pagamentos[j]={...p,mesAnterior:true};changed=true;}
-        }
-      }
-    });
-  });
-  // 2. Restaura clientes de todos os meses do histórico que não estão na lista atual
-  Object.values(D.history||{}).forEach(snap=>{
-    (snap.clients||[]).forEach(hc=>{
-      const jaExiste=D.clients.some(c=>c.nome===hc.nome&&c.productId===hc.productId);
-      if(!jaExiste){
-        D.clients.push({...hc,pagamentos:(hc.pagamentos||[]).map(p=>({...p,mesAnterior:true}))});
-        changed=true;
-      }
-    });
-  });
-  // 3. Corrige meta e ecossistema se zerados
-  if(D.meta===0||D.meta===135000){D.meta=200000;changed=true;}
-  const ativos=D.clients.filter(c=>c.status==='ativo'||c.status==='atraso').length;
-  if(D.ativos<ativos){D.ativos=ativos;changed=true;}
-  if(changed){save();console.log('Dados corrigidos automaticamente');}
+  setInterval(checkFimMes, 3600000);
 }
 
 init();
