@@ -1026,9 +1026,23 @@ function checkFimMes() {
 
 function fecharMes() {
   const atM = D.clients.filter(c=>c.type!=='antigo'&&c.status!=='cancelado');
-  const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tp(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
+  const caixa = D.clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tpMes(c),0)+D.extras.reduce((s,e)=>s+(e.valor||0),0);
   const pct = D.meta>0?Math.min(100,Math.round(caixa/D.meta*100)):0;
-  const key = mk();
+  // Usa o mês dos dados (não o mês atual) como chave do histórico
+  // Ex: fechando em julho os dados de junho ficam em "2026-06"
+  const allDates = [
+    ...D.clients.filter(c=>c.type==='novo').map(c=>c.dataInicio).filter(Boolean),
+    ...(D.extras||[]).filter(e=>e.data).map(e=>e.data)
+  ];
+  let dataY = new Date().getFullYear(), dataM_ = new Date().getMonth()+1;
+  if(allDates.length > 0) {
+    const parsed = allDates.map(d=>{const p=d.split('/');return p.length===3?{y:parseInt(p[2]),m:parseInt(p[1])}:null;}).filter(Boolean);
+    if(parsed.length > 0) {
+      const latest = parsed.reduce((a,b)=>a.y>b.y||(a.y===b.y&&a.m>b.m)?a:b);
+      dataY = latest.y; dataM_ = latest.m;
+    }
+  }
+  const key = `${dataY}-${String(dataM_).padStart(2,'0')}`;
   D.history[key] = {
     clients:[...D.clients],extras:[...D.extras],meta:D.meta,caixa,pct,date:dh(),
     stats:{ticket:atM.length>0?Math.round(caixa/atM.length):0,total:atM.length,novos:D.clients.filter(c=>c.type==='novo').length,cancelados:D.clients.filter(c=>c.status==='cancelado').length}
