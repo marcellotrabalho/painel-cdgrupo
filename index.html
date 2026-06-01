@@ -81,9 +81,6 @@ button:active{transform:scale(.97)}
 </head>
 <body>
 <div id="app">
-  <!-- ALERT BARS -->
-  <div id="alerts"></div>
-
   <!-- TOPBAR -->
   <div id="topbar">
     <div class="logo">
@@ -95,13 +92,19 @@ button:active{transform:scale(.97)}
       <button class="tab-btn" onclick="setTab('clientes')" id="tab-clientes">👥 Clientes</button>
       <button class="tab-btn" onclick="setTab('cadastro')" id="tab-cadastro">📋 Cadastro</button>
       <button class="tab-btn" onclick="setTab('historico')" id="tab-historico">📊 Métricas</button>
-      <button class="tab-btn" onclick="setTab('semanas')" id="tab-semanas">📅 Semanas</button>
+
+      <button class="tab-btn" onclick="setTab('admin')" id="tab-admin">⚙️ Admin</button>
     </div>
     <div class="topright">
       <div style="display:flex;align-items:center;gap:3px">
         <div class="sync-dot pu" id="sync-dot"></div>
         <span class="sync-txt" id="sync-txt">🔄...</span>
         <button onclick="forcSync()" style="padding:2px 7px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:rgba(255,255,255,.5);border-radius:6px;font-size:9px;font-weight:700" title="Forçar sync">🔄</button>
+      </div>
+      <div style="position:relative;display:inline-block">
+        <button onclick="toggleNotificacoes()" id="bell-btn" style="background:none;border:none;font-size:18px;cursor:pointer;padding:4px 6px;position:relative" title="Notificações">🔔</button>
+        <span id="bell-badge" style="display:none;position:absolute;top:0;right:0;background:#f87171;color:#fff;border-radius:99px;font-size:8px;font-weight:700;padding:1px 4px;min-width:14px;text-align:center"></span>
+        <div id="notif-panel" style="display:none;position:absolute;right:0;top:32px;width:280px;background:#0d1f35;border:1px solid rgba(56,189,248,.2);border-radius:12px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:999;max-height:400px;overflow-y:auto"></div>
       </div>
       <button class="btn-reg" onclick="openModal('choice')">+ Reg.</button>
       <span id="clock" class="mono"></span>
@@ -136,6 +139,9 @@ button:active{transform:scale(.97)}
 
     <!-- CADASTRO TAB -->
     <div id="view-cadastro" style="display:none;flex:1;overflow-y:auto;padding:12px 14px"></div>
+
+    <!-- ADMIN TAB -->
+    <div id="view-admin" style="display:none;flex:1;overflow-y:auto;padding:12px 14px"></div>
 
     <!-- SEMANAS TAB -->
     <div id="view-semanas" style="display:none;flex:1;overflow-y:auto;padding:12px 14px"></div>
@@ -226,7 +232,7 @@ const tp = c => (c.pagamentos||[]).reduce((s,p)=>s+(p.valor||0),0);
 const tpMes = c => (c.pagamentos||[]).filter(p=>!p.mesAnterior&&!p.historico).reduce((s,p)=>s+(p.valor||0),0);
 const si = id => ST.find(s=>s.id===id)||ST[0];
 const pr = id => PR.find(p=>p.id===id);
-const norm = d => ({clients:d.clients||[],extras:d.extras||[],sinais:d.sinais||[],meta:d.meta||0,ativos:d.ativos||0,history:d.history||{},semanas:d.semanas||{}});
+const norm = d => ({clients:d.clients||[],extras:d.extras||[],sinais:d.sinais||[],meta:d.meta||0,ativos:d.ativos||0,history:d.history||{},semanas:d.semanas||{},sdrs:d.sdrs||[],produtos:d.produtos||[]});
 const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 function toast(msg, col) {
@@ -259,7 +265,12 @@ function setSynced(ok) {
 
 async function save() {
   // Salva localStorage sempre
-  try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(D));
+    // Salva o mês dos dados para referência
+    const hasDados = D.clients.filter(c=>tpMes(c)>0).length>0||D.extras.length>0;
+    if(hasDados) localStorage.setItem('cdg_mk', mk());
+  } catch(e){}
   // SEGURANÇA: nunca salva dados vazios no Firebase - isso causou perda de dados antes
   const temDados = D.clients.length > 0 || Object.keys(D.history||{}).length > 0 || D.meta > 0;
   if(!temDados) {
@@ -320,25 +331,82 @@ async function syncPull() {
 
 // ─── ALERTS ──────────────────────────────────────────────────────────────────
 function renderAlerts() {
-  const now = new Date(), D_ = now.getDate();
-  const sinA = (D.sinais||[]).filter(s=>{ const d=dAt(s.dataDecisao); return d!==null&&d<=2&&d>=0; });
-  const cobH = D.clients.filter(c=>c.type!=='antigo'&&c.payMethod==='boleto'&&parseInt(c.diaCobranca)===D_&&c.status!=='cancelado'&&c.status!=='concluido');
-  let html = '';
-  if(sinA.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#7c2d12,#9a3412)">💸 Decisão: ${sinA.map(s=>esc(s.nome)+' ('+esc(s.dataDecisao)+')').join(', ')}</div>`;
-  if(cobH.length) html += `<div class="alert-bar" style="background:linear-gradient(90deg,#c2410c,#ea580c)">📅 Boleto HOJE: ${cobH.map(c=>esc(c.nome)).join(', ')}</div>`;
-  // Lembrete de fechar mês
-  if(localStorage.getItem('cdg_lembrete_fechar')==='1') {
-    html += `<div class="alert-bar" style="background:linear-gradient(90deg,#065f46,#047857);display:flex;justify-content:space-between;align-items:center">
-      <span>📦 Pronto para fechar o mês?</span>
-      <button onclick="promptFecharMes()" style="padding:3px 10px;background:#fff;color:#065f46;border:none;border-radius:5px;font-weight:700;font-size:10px">Fechar agora</button>
-    </div>`;
-  }
-  document.getElementById('alerts').innerHTML = html;
+  renderNotificacoes();
 }
 
-// ─── PAINEL ───────────────────────────────────────────────────────────────────
+function getNotificacoes() {
+  const now = new Date(), D_ = now.getDate();
+  const notifs = [];
+  // Sinais com decisão próxima
+  (D.sinais||[]).forEach(s=>{
+    const d = dAt(s.dataDecisao);
+    if(d !== null && d <= 2 && d >= 0) {
+      const label = d === 0 ? 'HOJE' : d === 1 ? 'amanhã' : `em ${d} dias`;
+      notifs.push({tipo:'sinal', icon:'💸', texto:`${s.nome} — decisão final ${label}`, urgente: d<=1});
+    }
+  });
+  // Cobranças do dia
+  D.clients.filter(c=>c.payMethod==='boleto'&&parseInt(c.diaCobranca)===D_&&c.status!=='cancelado').forEach(c=>{
+    notifs.push({tipo:'cobranca', icon:'📋', texto:`Cobrar boleto de ${c.nome} hoje`, urgente:true});
+  });
+  // Fechar mês
+  const savedMk = localStorage.getItem('cdg_mk');
+  const dataMk = savedMk || mk();
+  const [dY,dM_] = dataMk.split('-').map(Number);
+  const lastDay = new Date(dY,dM_,0).getDate();
+  const isOverdue = (now.getFullYear()>dY)||(now.getFullYear()===dY&&now.getMonth()+1>dM_)||(now.getFullYear()===dY&&now.getMonth()+1===dM_&&now.getDate()>=lastDay);
+  const temDados = D.clients.filter(c=>tpMes(c)>0).length>0||D.extras.length>0;
+  if(isOverdue && temDados) {
+    notifs.push({tipo:'fechar', icon:'📦', texto:'Fechar mês — clique para finalizar', urgente:true, action:'promptFecharMes()'});
+  }
+  // Lembrete manual
+  if(localStorage.getItem('cdg_lembrete_fechar')==='1') {
+    notifs.push({tipo:'lembrete', icon:'⏰', texto:'Lembrete: fechar mês pendente', urgente:false, action:'promptFecharMes()'});
+  }
+  return notifs;
+}
+
+function renderNotificacoes() {
+  const notifs = getNotificacoes();
+  const badge = document.getElementById('bell-badge');
+  const bell = document.getElementById('bell-btn');
+  if(badge) {
+    badge.style.display = notifs.length > 0 ? 'block' : 'none';
+    badge.textContent = notifs.length;
+  }
+  if(bell) {
+    bell.textContent = notifs.some(n=>n.urgente) ? '🔔' : '🔕';
+  }
+  const panel = document.getElementById('notif-panel');
+  if(panel && panel.style.display !== 'none') {
+    panel.innerHTML = notifs.length === 0
+      ? '<div style="padding:16px;text-align:center;color:rgba(255,255,255,.38);font-size:12px">Nenhuma notificação</div>'
+      : notifs.map(n=>`<div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;gap:8px;align-items:flex-start${n.action?';cursor:pointer':''}" ${n.action?`onclick="${n.action};toggleNotificacoes()"`:''}>
+        <span style="font-size:16px;flex-shrink:0">${n.icon}</span>
+        <span style="font-size:11px;color:${n.urgente?'#fbbf24':'rgba(255,255,255,.7)'};line-height:1.4">${n.texto}</span>
+      </div>`).join('');
+  }
+}
+
+function toggleNotificacoes() {
+  const panel = document.getElementById('notif-panel');
+  if(!panel) return;
+  panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  if(panel.style.display === 'block') renderNotificacoes();
+}
+
+
 function renderPainel() {
-  const now = new Date(), Y=now.getFullYear(), M=now.getMonth(), Dd=now.getDate();
+  const now = new Date();
+  // Usa o mês dos dados (não o mês atual do calendário)
+  // Se o mês não foi fechado, usa o mês do mk() salvo
+  const savedMk = localStorage.getItem('cdg_mk');
+  const dataMk = savedMk || mk();
+  const [dataY, dataM_] = dataMk.split('-').map(Number);
+  // Se estamos no mesmo mês dos dados, usa now; senão usa o último dia do mês dos dados
+  const Y = dataY, M = dataM_-1;
+  const isCurrentMonth = now.getFullYear()===Y && now.getMonth()===M;
+  const Dd = isCurrentMonth ? now.getDate() : new Date(Y, M+1, 0).getDate();
   const {clients,extras,sinais,meta,ativos} = D;
   const caixa = clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tpMes(c),0) + extras.reduce((s,e)=>s+(e.valor||0),0);
   const pct = meta>0 ? Math.min(100,Math.round(caixa/meta*100)) : 0;
@@ -493,7 +561,16 @@ function renderPainel() {
 // ─── CLIENTES ─────────────────────────────────────────────────────────────────
 function renderClientes() {
   const q = (document.getElementById('search-input')?.value||'').toLowerCase();
-  const now = new Date(), Y=now.getFullYear(), M=now.getMonth(), Dd=now.getDate();
+  const now = new Date();
+  // Usa o mês dos dados (não o mês atual do calendário)
+  // Se o mês não foi fechado, usa o mês do mk() salvo
+  const savedMk = localStorage.getItem('cdg_mk');
+  const dataMk = savedMk || mk();
+  const [dataY, dataM_] = dataMk.split('-').map(Number);
+  // Se estamos no mesmo mês dos dados, usa now; senão usa o último dia do mês dos dados
+  const Y = dataY, M = dataM_-1;
+  const isCurrentMonth = now.getFullYear()===Y && now.getMonth()===M;
+  const Dd = isCurrentMonth ? now.getDate() : new Date(Y, M+1, 0).getDate();
   const filtC = D.clients.filter(c=>{
     return !q || (c.nome||'').toLowerCase().includes(q) || (c.productName||'').toLowerCase().includes(q);
   });
@@ -603,7 +680,14 @@ function renderHistorico() {
   const totalMeta = entries.reduce((s,[,x])=>s+(x.meta||0),0) + (D.meta||0);
   const projAnual = allForChart.length>0 ? (totalCaixa/allForChart.length)*12 : 0;
 
-  el.innerHTML = `
+    const subTab = el.dataset.subTab || 'metricas';
+  if(subTab === 'semanas') { renderSemanasInline(el); return; }
+el.innerHTML = `
+    <!-- Sub-abas -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:10px">
+      <button onclick="setMetricasSubTab('metricas')" style="padding:5px 14px;border:none;border-radius:20px;background:${subTab==='metricas'?'rgba(56,189,248,.2)':'transparent'};color:${subTab==='metricas'?'#38bdf8':'rgba(255,255,255,.4)'};font-weight:700;font-size:11px;cursor:pointer">📊 Métricas</button>
+      <button onclick="setMetricasSubTab('semanas')" style="padding:5px 14px;border:none;border-radius:20px;background:${subTab==='semanas'?'rgba(56,189,248,.2)':'transparent'};color:${subTab==='semanas'?'#38bdf8':'rgba(255,255,255,.4)'};font-weight:700;font-size:11px;cursor:pointer">📅 Semanas</button>
+    </div>
   <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px">
     <div class="card" style="text-align:center;border-top:2px solid #38bdf8">
       <div class="lbl" style="margin-bottom:3px">Acumulado Total</div>
@@ -869,14 +953,18 @@ function ativarLembreteFechar() {
 
 function checkFimMes() {
   const now = new Date();
-  const lastDay = new Date(now.getFullYear(), now.getMonth()+1, 0).getDate();
-  if(now.getDate() === lastDay) {
-    const jaAvisou = localStorage.getItem('cdg_avisou_'+mk());
-    const temDados = D.clients.length > 0 || D.extras.length > 0;
-    if(!jaAvisou && temDados) {
-      localStorage.setItem('cdg_avisou_'+mk(), '1');
-      setTimeout(promptFecharMes, 2000);
-    }
+  const savedMk = localStorage.getItem('cdg_mk');
+  const dataMk = savedMk || mk();
+  const [dataY, dataM_] = dataMk.split('-').map(Number);
+  const lastDay = new Date(dataY, dataM_, 0).getDate();
+  const isLastDayOrLater = (now.getFullYear() > dataY) ||
+    (now.getFullYear() === dataY && now.getMonth()+1 > dataM_) ||
+    (now.getFullYear() === dataY && now.getMonth()+1 === dataM_ && now.getDate() >= lastDay);
+  const temDados = D.clients.filter(c=>tpMes(c)>0).length > 0 || D.extras.length > 0;
+  if(isLastDayOrLater && temDados) {
+    // Mostra notificação até fechar o mês
+    const jaFechou = mk() !== dataMk; // se o mês atual é diferente, já fechou
+    if(!jaFechou) setTimeout(promptFecharMes, 2000);
   }
 }
 
@@ -932,15 +1020,21 @@ function closeModal(){ document.getElementById('modal-overlay').classList.remove
 
 function buildModal(type) {
   if(type==='choice') return `
-    <div style="font-weight:900;font-size:19px;margin-bottom:12px">Registrar</div>
-    ${[['novo','⭐','Novo Cliente','Fechou agora','#1d4ed8'],['sinal','💸','Sinal','Decide depois','#0f766e'],['antigo','📋','Cli. Antigo','Migrar existente','#334155'],['anterior','📂','Pgto Anterior','Registrar parcela','#1e3a5f'],['outros','💼','Outros','Valor avulso','#3b0764']].map(([k,i,l,s,bg])=>`
-      <button onclick="openModal('${k}')" style="width:100%;padding:10px 13px;background:${bg};color:#fff;border:none;border-radius:10px;display:flex;align-items:center;gap:10px;margin-bottom:5px;text-align:left">
-        <span style="font-size:18px;flex-shrink:0">${i}</span>
-        <div><div style="font-weight:700;font-size:13px">${l}</div><div style="font-size:10px;opacity:.65;margin-top:1px">${s}</div></div>
+    <div style="font-weight:900;font-size:19px;margin-bottom:4px">Registrar</div>
+    <div style="font-size:11px;color:rgba(255,255,255,.4);margin-bottom:14px">Selecione o tipo</div>
+    ${[
+      ['novo','⭐','Novo Cliente','Cliente que fechou agora','#1d4ed8'],
+      ['sinal','💸','Sinal','Ainda vai decidir','#0f766e'],
+      ['recorrencia','🔁','Recorrência','Pagamento de cliente existente','#334155']
+    ].map(([k,i,l,s,bg])=>`
+      <button onclick="openModal('${k}')" style="width:100%;padding:11px 14px;background:${bg};color:#fff;border:none;border-radius:10px;display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer;touch-action:manipulation">
+        <span style="font-size:20px">${i}</span>
+        <div style="text-align:left"><div style="font-weight:700;font-size:13px">${l}</div><div style="font-size:10px;opacity:.7">${s}</div></div>
       </button>`).join('')}`;
 
-  if(type==='novo') return buildFormNovo();
+if(type==='novo') return buildFormNovo();
   if(type==='sinal') return buildFormSinal();
+  if(type==='recorrencia') return buildFormRecorrencia();
   if(type==='antigo') return buildFormEdit({},true);
   if(type==='anterior') return buildFormAnterior();
   if(type==='outros') return buildFormOutros();
@@ -968,19 +1062,62 @@ function buildFormNovo() {
   return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">⭐ Novo Cliente</div>
     <div class="lbl">Nome</div><input type="text" id="f-nome" placeholder="Ex: Maria Silva" autocomplete="off">
     <div class="lbl">Instagram</div><input type="text" id="f-insta" placeholder="@usuario" autocomplete="off">
-    <div class="lbl">Seguidores</div><input type="number" inputmode="numeric" id="f-seg" placeholder="Ex: 1200">
+    
     <div class="lbl">Meses contrato</div><input type="number" inputmode="numeric" id="f-meses" placeholder="Ex: 6">
     ${buildPP('')}
     ${buildPyP('pix','')}
     <div class="gf"><div class="lbl">💰 Quanto pagou esse mês?</div><input type="number" inputmode="decimal" id="f-pago" placeholder="0"><div style="font-size:10px;color:#34d399;margin-top:4px;opacity:.8">Só esse valor entra na meta.</div></div>
     <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveNovo()">✅ Salvar</button></div>`;
 }
+function buildFormRecorrencia() {
+  const clients = D.clients;
+  const opts = clients
+    .filter(c=>c.status!=='cancelado')
+    .map((c,i)=>`<option value="${i}">${c.nome} — ${c.productName}</option>`)
+    .join('');
+  return `
+    <div style="font-weight:900;font-size:18px;margin-bottom:14px">🔁 Recorrência</div>
+    <div class="lbl" style="margin-bottom:6px">Cliente</div>
+    <select id="f-rec-cliente" style="width:100%;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#edf4ff;font-size:13px;margin-bottom:10px">
+      <option value="-1">— Não registrado no painel —</option>
+      ${opts}
+    </select>
+    <div class="lbl" style="margin-bottom:6px">Valor (R$)</div>
+    <input id="f-rec-valor" type="number" placeholder="0,00" step="0.01" style="width:100%;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#edf4ff;font-size:13px;margin-bottom:10px">
+    <div class="lbl" style="margin-bottom:6px">Forma de Pagamento</div>
+    <select id="f-rec-pgto" style="width:100%;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#edf4ff;font-size:13px;margin-bottom:16px">
+      <option value="pix">PIX</option>
+      <option value="cartao">Cartão</option>
+      <option value="boleto">Boleto</option>
+    </select>
+    <button onclick="saveRecorrencia()" style="width:100%;padding:12px;border:none;border-radius:10px;background:#1d4ed8;color:#fff;font-weight:700;font-size:14px">✅ Registrar Recorrência</button>`;
+}
+
+function saveRecorrencia() {
+  const idx = parseInt(document.getElementById('f-rec-cliente').value);
+  const valor = parseFloat(document.getElementById('f-rec-valor').value);
+  const pgto = document.getElementById('f-rec-pgto').value;
+  if(!valor || valor <= 0) { toast('Informe o valor','#b91c1c'); return; }
+  if(idx === -1) {
+    // Não registrado - entra como extra com label Recorrência
+    D.extras.push({valor, descricao:'Recorrência', data:dh(), isRecorrencia:true});
+    save(); closeModal(); toast('✅ Recorrência registrada!'); renderAll();
+  } else {
+    // Cliente registrado - adiciona pagamento a ele (não aparece na sidebar como novo)
+    const c = D.clients[idx];
+    if(!c) return;
+    if(!c.pagamentos) c.pagamentos = [];
+    c.pagamentos.push({valor, data:dh(), mes:ms(), payMethod:pgto, isRecorrencia:true});
+    save(); closeModal(); toast(`✅ Pagamento de ${c.nome} registrado!`); renderAll();
+  }
+}
+
 
 function buildFormSinal() {
   return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">💸 Sinal</div>
     <div class="lbl">Nome</div><input type="text" id="f-nome" placeholder="Ex: Pedro" autocomplete="off">
     <div class="lbl">Instagram</div><input type="text" id="f-insta" placeholder="@usuario" autocomplete="off">
-    <div class="lbl">Seguidores</div><input type="number" inputmode="numeric" id="f-seg" placeholder="Ex: 1200">
+    
     ${buildPP('')}
     <div class="gf"><div class="lbl">💸 Valor do Sinal</div><input type="number" inputmode="decimal" id="f-sinal" placeholder="0"><div style="font-size:10px;color:#34d399;margin-top:4px;opacity:.8">Entra no caixa quando confirmar.</div></div>
     <div class="of"><div class="lbl">📅 Data Decisão (dd/mm/aaaa)</div><input type="text" id="f-decisao" placeholder="Ex: 25/04/2025"></div>
@@ -992,7 +1129,7 @@ function buildFormEdit(c, isNew) {
   return `<div style="font-weight:900;font-size:19px;margin-bottom:12px">${isNew?'📋 Cliente Antigo':'✏️ Editar'}</div>
     <div class="lbl">Nome</div><input type="text" id="f-nome" value="${esc(c.nome||'')}" placeholder="Nome completo" autocomplete="off">
     <div class="lbl">Instagram</div><input type="text" id="f-insta" value="${esc(c.insta||'')}" placeholder="@usuario" autocomplete="off">
-    <div class="lbl">Seguidores</div><input type="number" inputmode="numeric" id="f-seg" value="${c.segInicio||''}">
+    
     <div class="lbl">Data Início (dd/mm/aaaa)</div><input type="text" id="f-dtIn" value="${esc(c.dataInicio||'')}" placeholder="Ex: 01/01/2024">
     <div class="lbl">Meses contrato</div><input type="number" inputmode="numeric" id="f-meses" value="${c.mesesContrato||''}">
     <div class="lbl">Observações</div><input type="text" id="f-obs" value="${esc(c.obs||'')}" placeholder="Notas..." autocomplete="off">
@@ -1071,7 +1208,7 @@ function saveNovo() {
   if(!nome||!prod||!pay||!pago){ toast('Preencha nome, produto, pagamento e valor','#b91c1c'); return; }
   if(pay==='boleto'&&!g('f-dia')){ toast('Informe dia de cobrança','#b91c1c'); return; }
   const p=pr(prod);
-  D.clients.push({nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p.n,fullPrice:p.p,payMethod:pay,diaCobranca:pay==='boleto'?g('f-dia'):null,pagamentos:[{valor:pago,data:dh(),mes:ms()}],dataInicio:dh(),mesesContrato:gi('f-meses'),status:'ativo',type:'novo'});
+  D.clients.push({nome,insta:g('f-insta'),segInicio:0,sdr:g('f-sdr')||'',productId:prod,productName:p.n,fullPrice:p.p,payMethod:pay,diaCobranca:pay==='boleto'?g('f-dia'):null,pagamentos:[{valor:pago,data:dh(),mes:ms()}],dataInicio:dh(),mesesContrato:gi('f-meses'),status:'ativo',type:'novo'});
   D.ativos++; closeModal(); save(); toast('✅ Registrado!');
 }
 
@@ -1082,7 +1219,7 @@ function saveSinal() {
   if(!D.sinais) D.sinais=[];
   // Sinal entra no caixa imediatamente
   D.extras.push({valor:sinal, descricao:`Sinal — ${nome}`, data:dh(), isSinal:true, sinalNome:nome});
-  D.sinais.push({id:Date.now(),nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p.n,fullPrice:p.p,valorSinal:sinal,dataDecisao:decisao,cadastro:dh()});
+  D.sinais.push({id:Date.now(),nome,insta:g('f-insta'),segInicio:0,productId:prod,productName:p.n,fullPrice:p.p,valorSinal:sinal,dataDecisao:decisao,cadastro:dh()});
   closeModal(); save(); toast('💸 Sinal salvo!');
 }
 
@@ -1091,7 +1228,7 @@ function saveEdit(isNew) {
   if(!nome){ toast('Informe o nome','#b91c1c'); return; }
   if(!prod){ toast('Selecione produto','#b91c1c'); return; }
   const p=pr(prod);
-  const obj={nome,insta:g('f-insta'),segInicio:gi('f-seg'),productId:prod,productName:p?.n||'',fullPrice:p?.p||0,payMethod:g('f-pay')||'pix',diaCobranca:g('f-pay')==='boleto'?g('f-dia'):null,dataInicio:g('f-dtIn')||dh(),mesesContrato:gi('f-meses'),obs:g('f-obs')};
+  const obj={nome,insta:g('f-insta'),segInicio:0,productId:prod,productName:p?.n||'',fullPrice:p?.p||0,payMethod:g('f-pay')||'pix',diaCobranca:g('f-pay')==='boleto'?g('f-dia'):null,dataInicio:g('f-dtIn')||dh(),mesesContrato:gi('f-meses'),obs:g('f-obs')};
   if(isNew){
     obj.pagamentos=[]; obj.status='ativo'; obj.type='antigo';
     D.clients.push(obj); D.ativos++;
@@ -1140,7 +1277,7 @@ function saveNum(field) {
 
 function setTab(t) {
   curTab = t;
-  ['painel','clientes','cadastro','historico','semanas'].forEach(id => {
+  ['painel','clientes','cadastro','historico','admin'].forEach(id => {
     const el = document.getElementById('view-'+id);
     if(!el) return;
     if(id==='painel'||id==='clientes') el.style.display = id===t ? 'flex' : 'none';
@@ -1157,7 +1294,7 @@ function renderAll() {
   if(curTab==='clientes') renderClientes();
   if(curTab==='cadastro') renderCadastro();
   if(curTab==='historico') renderHistorico();
-  if(curTab==='semanas') renderSemanas();
+  if(curTab==='admin') renderAdmin();
 }
 
 function renderSemanas() {
@@ -1301,6 +1438,165 @@ function checkDashboardSemanal() {
   // Não salva no Firebase agora - só no próximo save com dados reais
   try{localStorage.setItem(LS_KEY,JSON.stringify(D));}catch(e){}
   abrirResumSemanal(key);
+}
+
+function renderAdmin() {
+  const el = document.getElementById('view-admin');
+  const produtos = D.produtos || [];
+  const sdrs = D.sdrs || [];
+  el.innerHTML = `
+    <div style="font-weight:900;font-size:16px;margin-bottom:14px">⚙️ Admin</div>
+
+    <!-- PRODUTOS -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="lbl" style="margin-bottom:0;font-size:13px;font-weight:700">📦 Produtos</div>
+        <button onclick="addProduto()" style="padding:4px 10px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:#34d399;border-radius:6px;font-weight:700;font-size:10px">+ Novo</button>
+      </div>
+      ${PR.map((p,i)=>`<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <div style="width:10px;height:10px;border-radius:2px;background:${p.c};flex-shrink:0"></div>
+        <div style="flex:1">
+          <div style="font-weight:700;font-size:12px">${p.n}</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.4)">R$ ${p.p.toLocaleString('pt-BR')}</div>
+        </div>
+        <button onclick="editProduto(${i})" style="padding:3px 8px;background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.2);color:#38bdf8;border-radius:5px;font-size:9px;font-weight:600">✏️ Editar</button>
+      </div>`).join('')}
+    </div>
+
+    <!-- SDRs -->
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div class="lbl" style="margin-bottom:0;font-size:13px;font-weight:700">👥 SDRs</div>
+        <button onclick="addSDR()" style="padding:4px 10px;background:rgba(52,211,153,.1);border:1px solid rgba(52,211,153,.3);color:#34d399;border-radius:6px;font-weight:700;font-size:10px">+ Novo</button>
+      </div>
+      ${sdrs.length===0?'<div style="color:rgba(255,255,255,.38);font-size:11px;text-align:center;padding:10px">Nenhum SDR cadastrado</div>':''}
+      ${sdrs.map((s,i)=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)">
+        <div style="font-weight:700;font-size:12px">👤 ${s.nome}</div>
+        <button onclick="delSDR(${i})" style="padding:2px 7px;background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.2);color:#f87171;border-radius:5px;font-size:9px;font-weight:600">✕</button>
+      </div>`).join('')}
+    </div>
+
+    <!-- BACKUP -->
+    <div class="card">
+      <div class="lbl" style="margin-bottom:8px;font-size:13px;font-weight:700">💾 Backup</div>
+      <button onclick="exportarBackup()" style="width:100%;padding:10px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.2);color:#34d399;border-radius:8px;font-weight:700;font-size:12px;margin-bottom:8px">⬇️ Exportar backup JSON</button>
+      <div style="font-size:9px;color:rgba(255,255,255,.3);text-align:center">Baixa todos os dados como arquivo JSON</div>
+    </div>`;
+}
+
+function addProduto() {
+  const nome = prompt('Nome do produto:');
+  if(!nome) return;
+  const preco = parseFloat(prompt('Preço (R$):'));
+  if(!preco) return;
+  const cor = prompt('Cor (hex, ex: #34d399):') || '#38bdf8';
+  if(!D.produtos) D.produtos = [...PR];
+  D.produtos.push({id:'p'+Date.now(),n:nome,p:preco,c:cor,b:cor+'22'});
+  // Update PR
+  PR.push({id:'p'+Date.now(),n:nome,p:preco,c:cor,b:cor+'22'});
+  save(); renderAdmin(); toast('✅ Produto adicionado!');
+}
+
+function editProduto(i) {
+  const p = PR[i];
+  const box = document.getElementById('modal-box');
+  box.innerHTML = `
+    <div style="font-weight:900;font-size:18px;margin-bottom:14px">✏️ Editar Produto</div>
+    <div class="lbl" style="margin-bottom:6px">Nome</div>
+    <input id="ep-nome" value="${p.n}" style="width:100%;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#edf4ff;font-size:13px;margin-bottom:10px">
+    <div class="lbl" style="margin-bottom:6px">Valor (R$)</div>
+    <input id="ep-preco" type="number" value="${p.p}" step="0.01" style="width:100%;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#edf4ff;font-size:13px;margin-bottom:16px">
+    <div style="display:flex;gap:8px">
+      <button onclick="closeModal()" style="flex:1;padding:11px;border:1.5px solid rgba(255,255,255,.1);border-radius:9px;background:none;color:rgba(255,255,255,.5);font-weight:600;font-size:13px">Cancelar</button>
+      <button onclick="salvarEditProduto(${i})" style="flex:2;padding:11px;border:none;border-radius:9px;background:#1d4ed8;color:#fff;font-weight:700;font-size:13px">✅ Salvar</button>
+    </div>`;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function salvarEditProduto(i) {
+  const nome = document.getElementById('ep-nome').value.trim();
+  const preco = parseFloat(document.getElementById('ep-preco').value);
+  if(!nome || !preco) { toast('Preencha nome e valor','#b91c1c'); return; }
+  PR[i] = {...PR[i], n:nome, p:preco};
+  closeModal(); save(); renderAdmin(); toast('✅ Produto atualizado!');
+}
+
+function addSDR() {
+  const nome = prompt('Nome do SDR:');
+  if(!nome) return;
+  if(!D.sdrs) D.sdrs = [];
+  D.sdrs.push({id:Date.now(), nome});
+  save(); renderAdmin(); toast('✅ SDR adicionado!');
+}
+
+function delSDR(i) {
+  if(!confirm(`Remover este SDR?`)) return;
+  D.sdrs.splice(i,1);
+  save(); renderAdmin(); toast('✅ SDR removido!');
+}
+
+function exportarBackup() {
+  const data = JSON.stringify(D, null, 2);
+  const blob = new Blob([data], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'cdgrupo_backup_'+dh().replace(/\//g,'-')+'.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast('✅ Backup exportado!');
+}
+
+function setMetricasSubTab(tab) {
+  const el = document.getElementById('view-historico');
+  el.dataset.subTab = tab;
+  renderHistorico();
+}
+
+function renderSemanasInline(el) {
+  const entries = Object.entries(D.semanas||{}).sort((a,b)=>b[0].localeCompare(a[0]));
+  const byMonth = {};
+  entries.forEach(([key,s])=>{const mk_=key.slice(0,7);if(!byMonth[mk_])byMonth[mk_]=[];byMonth[mk_].push([key,s]);});
+  const months = Object.keys(byMonth).sort((a,b)=>b.localeCompare(a));
+  const openMonth = el.dataset.openMonth||months[0]||'';
+  el.innerHTML=`
+    <!-- Sub-abas -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:10px">
+      <button onclick="setMetricasSubTab('metricas')" style="padding:5px 14px;border:none;border-radius:20px;background:transparent;color:rgba(255,255,255,.4);font-weight:700;font-size:11px;cursor:pointer">📊 Métricas</button>
+      <button onclick="setMetricasSubTab('semanas')" style="padding:5px 14px;border:none;border-radius:20px;background:rgba(56,189,248,.2);color:#38bdf8;font-weight:700;font-size:11px;cursor:pointer">📅 Semanas</button>
+    </div>
+    <div style="font-weight:800;font-size:14px;margin-bottom:10px">📅 Dashboard Semanal</div>
+    ${months.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:28px;font-size:12px;line-height:1.8">Nenhum resumo ainda.<br>Aparece toda segunda-feira automaticamente.</div>':''}
+    <div style="display:flex;flex-direction:column;gap:6px">
+    ${months.map(mkey=>{
+      const isOpen=mkey===openMonth;
+      const label=new Date(mkey+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+      const semanas=byMonth[mkey];
+      const totalE=semanas.reduce((s,[,x])=>s+(x.entradas||0),0);
+      return\`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-radius:12px;overflow:hidden">
+        <div onclick="setSemanasMes('\${mkey}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer">
+          <div>
+            <div style="font-weight:800;font-size:13px;text-transform:capitalize">\${label}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:2px">\${semanas.length} semana(s) • R$ \${totalE.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
+          </div>
+          <div>\${isOpen?'▲':'▼'}</div>
+        </div>
+        \${isOpen?\`<div style="border-top:1px solid rgba(56,189,248,.11);padding:8px">
+          \${semanas.map(([key,s])=>\`<div onclick="abrirResumSemanal('\${key}')" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:10px 12px;margin-bottom:5px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
+            <div><div style="font-weight:700;font-size:11px">\${s.label||key}</div><div style="font-size:9px;color:rgba(255,255,255,.38)">\${s.novos||0} novo(s)</div></div>
+            <div style="text-align:right"><div class="mono" style="font-weight:800;font-size:12px;color:#34d399">R$ \${(s.entradas||0).toLocaleString('pt-BR')}</div><div style="font-size:9px;color:${(s.ritmo||0)>=100?'#34d399':'#f87171'};font-weight:700">\${s.ritmo||0}% ritmo</div></div>
+          </div>\`).join('')}
+        </div>\`:''}
+      </div>\`;
+    }).join('')}
+    </div>`;
+  el.dataset.openMonth = openMonth;
+}
+
+function setSemanasMes(mkey) {
+  const el = document.getElementById('view-historico');
+  el.dataset.openMonth = el.dataset.openMonth===mkey?'':mkey;
+  renderSemanasInline(el);
 }
 
 async function init() {
