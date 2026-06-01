@@ -322,6 +322,7 @@ async function syncPull() {
         D = norm(j);
         try { localStorage.setItem(LS_KEY, JSON.stringify(D)); } catch(e){}
         renderAll();
+        checkFimMes();
       }
     }
     setSynced(true);
@@ -398,15 +399,28 @@ function toggleNotificacoes() {
 
 function renderPainel() {
   const now = new Date();
-  // Usa o mês dos dados (não o mês atual do calendário)
-  // Se o mês não foi fechado, usa o mês do mk() salvo
-  const savedMk = localStorage.getItem('cdg_mk');
-  const dataMk = savedMk || mk();
-  const [dataY, dataM_] = dataMk.split('-').map(Number);
-  // Se estamos no mesmo mês dos dados, usa now; senão usa o último dia do mês dos dados
-  const Y = dataY, M = dataM_-1;
-  const isCurrentMonth = now.getFullYear()===Y && now.getMonth()===M;
-  const Dd = isCurrentMonth ? now.getDate() : new Date(Y, M+1, 0).getDate();
+  // Detecta o mês dos dados a partir dos pagamentos dos clientes
+  // Isso evita o bug quando passa para o mês seguinte sem fechar
+  let Y = now.getFullYear(), M = now.getMonth(), Dd = now.getDate();
+  const allPagDates = D.clients.flatMap(c=>(c.pagamentos||[])
+    .filter(p=>!p.mesAnterior&&!p.historico&&p.data)
+    .map(p=>p.data));
+  const extraDates = (D.extras||[]).filter(e=>e.data).map(e=>e.data);
+  const allDates = [...allPagDates, ...extraDates];
+  if(allDates.length > 0) {
+    // Get most recent payment month
+    const parsed = allDates.map(d=>{
+      const parts = d.split('/');
+      if(parts.length===3) return {y:parseInt(parts[2]),m:parseInt(parts[1])-1};
+      return null;
+    }).filter(Boolean);
+    if(parsed.length > 0) {
+      const latest = parsed.reduce((a,b)=>a.y>b.y||(a.y===b.y&&a.m>b.m)?a:b);
+      Y = latest.y; M = latest.m;
+      const isCurrentMonth = now.getFullYear()===Y && now.getMonth()===M;
+      Dd = isCurrentMonth ? now.getDate() : new Date(Y, M+1, 0).getDate();
+    }
+  }
   const {clients,extras,sinais,meta,ativos} = D;
   const caixa = clients.filter(c=>c.type!=='antigo').reduce((s,c)=>s+tpMes(c),0) + extras.reduce((s,e)=>s+(e.valor||0),0);
   const pct = meta>0 ? Math.min(100,Math.round(caixa/meta*100)) : 0;
@@ -562,15 +576,28 @@ function renderPainel() {
 function renderClientes() {
   const q = (document.getElementById('search-input')?.value||'').toLowerCase();
   const now = new Date();
-  // Usa o mês dos dados (não o mês atual do calendário)
-  // Se o mês não foi fechado, usa o mês do mk() salvo
-  const savedMk = localStorage.getItem('cdg_mk');
-  const dataMk = savedMk || mk();
-  const [dataY, dataM_] = dataMk.split('-').map(Number);
-  // Se estamos no mesmo mês dos dados, usa now; senão usa o último dia do mês dos dados
-  const Y = dataY, M = dataM_-1;
-  const isCurrentMonth = now.getFullYear()===Y && now.getMonth()===M;
-  const Dd = isCurrentMonth ? now.getDate() : new Date(Y, M+1, 0).getDate();
+  // Detecta o mês dos dados a partir dos pagamentos dos clientes
+  // Isso evita o bug quando passa para o mês seguinte sem fechar
+  let Y = now.getFullYear(), M = now.getMonth(), Dd = now.getDate();
+  const allPagDates = D.clients.flatMap(c=>(c.pagamentos||[])
+    .filter(p=>!p.mesAnterior&&!p.historico&&p.data)
+    .map(p=>p.data));
+  const extraDates = (D.extras||[]).filter(e=>e.data).map(e=>e.data);
+  const allDates = [...allPagDates, ...extraDates];
+  if(allDates.length > 0) {
+    // Get most recent payment month
+    const parsed = allDates.map(d=>{
+      const parts = d.split('/');
+      if(parts.length===3) return {y:parseInt(parts[2]),m:parseInt(parts[1])-1};
+      return null;
+    }).filter(Boolean);
+    if(parsed.length > 0) {
+      const latest = parsed.reduce((a,b)=>a.y>b.y||(a.y===b.y&&a.m>b.m)?a:b);
+      Y = latest.y; M = latest.m;
+      const isCurrentMonth = now.getFullYear()===Y && now.getMonth()===M;
+      Dd = isCurrentMonth ? now.getDate() : new Date(Y, M+1, 0).getDate();
+    }
+  }
   const filtC = D.clients.filter(c=>{
     return !q || (c.nome||'').toLowerCase().includes(q) || (c.productName||'').toLowerCase().includes(q);
   });
@@ -775,7 +802,9 @@ el.innerHTML = `
 
   <!-- MESES ARQUIVADOS -->
   ${entries.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:20px;font-size:12px">Nenhum mês arquivado ainda.</div>':''}
-  <div class="lbl" style="margin-bottom:8px">🗂 Meses Arquivados</div>
+  <!-- SDR METRICS -->
+    ${(()=>{const sdrs=D.sdrs||[];if(!sdrs.length)return'';const sdrData=sdrs.map(s=>{const cl=D.clients.filter(c=>c.sdr===s.nome&&tpMes(c)>0);return{...s,cl:cl.length,t:cl.reduce((s,c)=>s+tpMes(c),0)};}).filter(x=>x.cl>0).sort((a,b)=>b.t-a.t);if(!sdrData.length)return'';const maxT=sdrData[0]?.t||1;return`<div class="card" style="margin-bottom:14px"><div class="lbl" style="margin-bottom:10px">👥 Métricas por SDR — Mês Atual</div>${sdrData.map(s=>`<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;margin-bottom:3px"><span style="font-weight:700;font-size:12px">👤 ${s.nome}</span><div><span class="mono" style="font-weight:700;font-size:12px;color:#34d399">${R$(s.t)}</span><span style="font-size:10px;color:rgba(255,255,255,.38);margin-left:6px">${s.cl} cliente(s)</span></div></div><div style="height:5px;background:rgba(255,255,255,.06);border-radius:99px;overflow:hidden"><div style="height:100%;width:${Math.round(s.t/maxT*100)}%;background:#34d399;border-radius:99px"></div></div></div>`).join('')}</div>`;})()}
+    <div class="lbl" style="margin-bottom:8px">🗂 Meses Arquivados</div>
   <div style="display:flex;flex-direction:column;gap:8px">
   ${entries.map(([key,snap])=>{
     const lb = new Date(key+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
@@ -822,16 +851,16 @@ el.innerHTML = `
           <div style="height:5px;background:rgba(255,255,255,.05);border-radius:99px;overflow:hidden"><div style="height:100%;width:${bdPMax>0?Math.round(p.t/bdPMax*100):0}%;background:${c};border-radius:99px"></div></div>
         </div>`;}).join('')}`:''}
         <!-- CLIENTES NOVOS -->
-        ${novos.length>0?`<div class="lbl" style="margin-bottom:5px;margin-top:8px">✅ Clientes Novos (${novos.length})</div>
-        <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">
+        ${novos.length>0?`<div class="lbl" style="margin-bottom:5px;margin-top:8px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="toggleDetSec('cli-${key}')">✅ Clientes Novos (${novos.length}) <span style="font-size:10px;opacity:.5">▼ ver lista</span></div>
+        <div id="cli-${key}" style="display:none;flex-direction:column;gap:3px;margin-bottom:8px">
           ${novos.map(c=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:rgba(52,211,153,.05);border-radius:6px;font-size:11px">
             <span style="font-weight:600">${esc(c.nome)} <span style="font-size:9px;color:rgba(255,255,255,.38)">${c.productName||''}</span></span>
             <span class="mono" style="color:#34d399">${R$((c.pagamentos||[]).reduce((s,p)=>s+(p.valor||0),0))}</span>
           </div>`).join('')}
         </div>`:''}
         <!-- RECORRÊNCIAS -->
-        ${antigos.filter(c=>(c.pagamentos||[]).some(p=>!p.historico)).length>0?`<div class="lbl" style="margin-bottom:5px">🔄 Pagamentos de Recorrência</div>
-        <div style="display:flex;flex-direction:column;gap:3px;margin-bottom:8px">
+        ${antigos.filter(c=>(c.pagamentos||[]).some(p=>!p.historico)).length>0?`<div class="lbl" style="margin-bottom:5px;cursor:pointer;display:flex;justify-content:space-between;align-items:center" onclick="toggleDetSec('rec-${key}')">🔄 Pagamentos de Recorrência <span style="font-size:10px;opacity:.5">▼ ver lista</span></div>
+        <div id="rec-${key}" style="display:none;flex-direction:column;gap:3px;margin-bottom:8px">
           ${antigos.filter(c=>(c.pagamentos||[]).some(p=>!p.historico)).map(c=>`<div style="display:flex;justify-content:space-between;padding:5px 8px;background:rgba(56,189,248,.05);border-radius:6px;font-size:11px">
             <span style="font-weight:600">${esc(c.nome)} <span style="font-size:9px;color:rgba(255,255,255,.38)">${c.productName||''}</span></span>
             <span class="mono" style="color:#38bdf8">${R$((c.pagamentos||[]).reduce((s,p)=>s+(p.valor||0),0))}</span>
@@ -953,20 +982,47 @@ function ativarLembreteFechar() {
 
 function checkFimMes() {
   const now = new Date();
-  const savedMk = localStorage.getItem('cdg_mk');
-  const dataMk = savedMk || mk();
-  const [dataY, dataM_] = dataMk.split('-').map(Number);
-  const lastDay = new Date(dataY, dataM_, 0).getDate();
-  const isLastDayOrLater = (now.getFullYear() > dataY) ||
-    (now.getFullYear() === dataY && now.getMonth()+1 > dataM_) ||
-    (now.getFullYear() === dataY && now.getMonth()+1 === dataM_ && now.getDate() >= lastDay);
-  const temDados = D.clients.filter(c=>tpMes(c)>0).length > 0 || D.extras.length > 0;
-  if(isLastDayOrLater && temDados) {
-    // Mostra notificação até fechar o mês
-    const jaFechou = mk() !== dataMk; // se o mês atual é diferente, já fechou
-    if(!jaFechou) setTimeout(promptFecharMes, 2000);
+  // Tem dados se há qualquer extra OU cliente novo (não antigo) com pagamento
+  const temExtras = (D.extras||[]).length > 0;
+  const temClientesNovos = D.clients.filter(c=>c.type==='novo').length > 0;
+  const temDados = temExtras || temClientesNovos;
+  if(!temDados) return;
+
+  // Detecta mês dos dados
+  const allDates = [
+    ...D.clients.filter(c=>c.type==='novo').map(c=>c.dataInicio).filter(Boolean),
+    ...(D.extras||[]).filter(e=>e.data).map(e=>e.data)
+  ];
+  let dataY = now.getFullYear(), dataM_ = now.getMonth()+1;
+  if(allDates.length > 0) {
+    const parsed = allDates.map(d=>{
+      const p = d.split('/');
+      return p.length===3 ? {y:parseInt(p[2]), m:parseInt(p[1])} : null;
+    }).filter(Boolean);
+    if(parsed.length > 0) {
+      const latest = parsed.reduce((a,b)=>a.y>b.y||(a.y===b.y&&a.m>b.m)?a:b);
+      dataY = latest.y; dataM_ = latest.m;
+    }
   }
+
+  // Verifica se passou o último dia do mês dos dados
+  const lastDay = new Date(dataY, dataM_, 0).getDate();
+  const isLastDayOrLater =
+    now.getFullYear() > dataY ||
+    (now.getFullYear()===dataY && now.getMonth()+1 > dataM_) ||
+    (now.getFullYear()===dataY && now.getMonth()+1===dataM_ && now.getDate()>=lastDay);
+
+  if(!isLastDayOrLater) return;
+
+  // Verifica se já foi fechado este mês
+  const dataMkStr = `${dataY}-${String(dataM_).padStart(2,'0')}`;
+  const jaFechou = Object.keys(D.history||{}).includes(dataMkStr);
+  if(jaFechou) return;
+
+  // Aparece a notificação
+  promptFecharMes();
 }
+
 
 function fecharMes() {
   const atM = D.clients.filter(c=>c.type!=='antigo'&&c.status!=='cancelado');
@@ -1067,19 +1123,24 @@ function buildFormNovo() {
     ${buildPP('')}
     ${buildPyP('pix','')}
     <div class="gf"><div class="lbl">💰 Quanto pagou esse mês?</div><input type="number" inputmode="decimal" id="f-pago" placeholder="0"><div style="font-size:10px;color:#34d399;margin-top:4px;opacity:.8">Só esse valor entra na meta.</div></div>
+    <div class="lbl" style="margin-bottom:5px">SDR (quem prospectou)</div>
+    <select id="f-sdr" style="width:100%;padding:10px;background:#0d1f35;border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#edf4ff;font-size:13px;margin-bottom:10px">
+      <option value="" style="background:#0d1f35;color:#edf4ff">— Nenhum —</option>
+      ${(D.sdrs||[]).map(s=>`<option value="${s.nome}" style="background:#0d1f35;color:#edf4ff">${s.nome}</option>`).join('')}
+    </select>
     <div class="btns"><button class="btn-cancel" onclick="closeModal()">Cancelar</button><button class="btn-save" onclick="saveNovo()">✅ Salvar</button></div>`;
 }
 function buildFormRecorrencia() {
   const clients = D.clients;
   const opts = clients
     .filter(c=>c.status!=='cancelado')
-    .map((c,i)=>`<option value="${i}">${c.nome} — ${c.productName}</option>`)
+    .map((c,i)=>`<option value="${i}" style="background:#0d1f35;color:#edf4ff">${c.nome} — ${c.productName}</option>`)
     .join('');
   return `
     <div style="font-weight:900;font-size:18px;margin-bottom:14px">🔁 Recorrência</div>
     <div class="lbl" style="margin-bottom:6px">Cliente</div>
-    <select id="f-rec-cliente" style="width:100%;padding:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:8px;color:#edf4ff;font-size:13px;margin-bottom:10px">
-      <option value="-1">— Não registrado no painel —</option>
+    <select id="f-rec-cliente" style="width:100%;padding:10px;background:#0d1f35;border:1px solid rgba(255,255,255,.2);border-radius:8px;color:#edf4ff;font-size:13px;margin-bottom:10px">
+      <option value="-1" style="background:#0d1f35;color:#edf4ff">— Não registrado no painel —</option>
       ${opts}
     </select>
     <div class="lbl" style="margin-bottom:6px">Valor (R$)</div>
@@ -1559,37 +1620,45 @@ function renderSemanasInline(el) {
   entries.forEach(([key,s])=>{const mk_=key.slice(0,7);if(!byMonth[mk_])byMonth[mk_]=[];byMonth[mk_].push([key,s]);});
   const months = Object.keys(byMonth).sort((a,b)=>b.localeCompare(a));
   const openMonth = el.dataset.openMonth||months[0]||'';
-  el.innerHTML=`
-    <!-- Sub-abas -->
+
+  let html = `
     <div style="display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid rgba(255,255,255,.08);padding-bottom:10px">
       <button onclick="setMetricasSubTab('metricas')" style="padding:5px 14px;border:none;border-radius:20px;background:transparent;color:rgba(255,255,255,.4);font-weight:700;font-size:11px;cursor:pointer">📊 Métricas</button>
       <button onclick="setMetricasSubTab('semanas')" style="padding:5px 14px;border:none;border-radius:20px;background:rgba(56,189,248,.2);color:#38bdf8;font-weight:700;font-size:11px;cursor:pointer">📅 Semanas</button>
     </div>
-    <div style="font-weight:800;font-size:14px;margin-bottom:10px">📅 Dashboard Semanal</div>
-    ${months.length===0?'<div style="text-align:center;color:rgba(255,255,255,.38);padding:28px;font-size:12px;line-height:1.8">Nenhum resumo ainda.<br>Aparece toda segunda-feira automaticamente.</div>':''}
-    <div style="display:flex;flex-direction:column;gap:6px">
-    ${months.map(mkey=>{
-      const isOpen=mkey===openMonth;
-      const label=new Date(mkey+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
-      const semanas=byMonth[mkey];
-      const totalE=semanas.reduce((s,[,x])=>s+(x.entradas||0),0);
-      return\`<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-radius:12px;overflow:hidden">
-        <div onclick="setSemanasMes('\${mkey}')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer">
-          <div>
-            <div style="font-weight:800;font-size:13px;text-transform:capitalize">\${label}</div>
-            <div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:2px">\${semanas.length} semana(s) • R$ \${totalE.toLocaleString('pt-BR',{minimumFractionDigits:0})}</div>
-          </div>
-          <div>\${isOpen?'▲':'▼'}</div>
-        </div>
-        \${isOpen?\`<div style="border-top:1px solid rgba(56,189,248,.11);padding:8px">
-          \${semanas.map(([key,s])=>\`<div onclick="abrirResumSemanal('\${key}')" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:10px 12px;margin-bottom:5px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">
-            <div><div style="font-weight:700;font-size:11px">\${s.label||key}</div><div style="font-size:9px;color:rgba(255,255,255,.38)">\${s.novos||0} novo(s)</div></div>
-            <div style="text-align:right"><div class="mono" style="font-weight:800;font-size:12px;color:#34d399">R$ \${(s.entradas||0).toLocaleString('pt-BR')}</div><div style="font-size:9px;color:${(s.ritmo||0)>=100?'#34d399':'#f87171'};font-weight:700">\${s.ritmo||0}% ritmo</div></div>
-          </div>\`).join('')}
-        </div>\`:''}
-      </div>\`;
-    }).join('')}
-    </div>`;
+    <div style="font-weight:800;font-size:14px;margin-bottom:10px">📅 Dashboard Semanal</div>`;
+
+  if(months.length===0) {
+    html += '<div style="text-align:center;color:rgba(255,255,255,.38);padding:28px;font-size:12px;line-height:1.8">Nenhum resumo ainda.<br>Aparece toda segunda-feira automaticamente.</div>';
+  }
+
+  html += '<div style="display:flex;flex-direction:column;gap:6px">';
+  months.forEach(mkey => {
+    const isOpen = mkey===openMonth;
+    const label = new Date(mkey+'-02').toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+    const semanas = byMonth[mkey];
+    const totalE = semanas.reduce((s,[,x])=>s+(x.entradas||0),0);
+    html += '<div style="background:rgba(255,255,255,.034);border:1px solid rgba(56,189,248,.11);border-radius:12px;overflow:hidden">';
+    html += '<div onclick="setSemanasMes(\''+mkey+'\')" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer">';
+    html += '<div><div style="font-weight:800;font-size:13px;text-transform:capitalize">'+label+'</div>';
+    html += '<div style="font-size:10px;color:rgba(255,255,255,.38);margin-top:2px">'+semanas.length+' semana(s) • '+R$(totalE)+'</div></div>';
+    html += '<div>'+(isOpen?'▲':'▼')+'</div></div>';
+    if(isOpen) {
+      html += '<div style="border-top:1px solid rgba(56,189,248,.11);padding:8px">';
+      semanas.forEach(([key,s]) => {
+        const rC=(s.ritmo||0)>=100?'#34d399':'#f87171';
+        html += '<div onclick="abrirResumSemanal(\''+key+'\')" style="background:rgba(255,255,255,.025);border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:10px 12px;margin-bottom:5px;cursor:pointer;display:flex;justify-content:space-between;align-items:center">';
+        html += '<div><div style="font-weight:700;font-size:11px">'+(s.label||key)+'</div>';
+        html += '<div style="font-size:9px;color:rgba(255,255,255,.38)">'+(s.novos||0)+' novo(s)</div></div>';
+        html += '<div style="text-align:right"><div class="mono" style="font-weight:800;font-size:12px;color:#34d399">'+R$(s.entradas||0)+'</div>';
+        html += '<div style="font-size:9px;color:'+rC+';font-weight:700">'+(s.ritmo||0)+'% ritmo</div></div></div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+  el.innerHTML = html;
   el.dataset.openMonth = openMonth;
 }
 
@@ -1597,6 +1666,12 @@ function setSemanasMes(mkey) {
   const el = document.getElementById('view-historico');
   el.dataset.openMonth = el.dataset.openMonth===mkey?'':mkey;
   renderSemanasInline(el);
+}
+
+function toggleDetSec(id) {
+  const el = document.getElementById(id);
+  if(!el) return;
+  el.style.display = el.style.display === 'none' ? 'flex' : 'none';
 }
 
 async function init() {
